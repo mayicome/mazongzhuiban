@@ -1,0 +1,11 @@
+{
+    "version": "1.0.1",
+    "changelog": "1. 修复了交易逻辑的BUG\n2. 优化了性能",
+    "files": [
+        {
+            "url": "https://your-domain.com/mytrade_zhuizhangtingban.py",
+            "path": "mytrade_zhuizhangtingban.py",
+            "sha256": "文件校验码"
+        }
+    ]
+}
