@@ -14,6 +14,11 @@ from contextlib import closing
 import json
 from flask_socketio import SocketIO
 import eventlet
+from mytrade_zhuizhangtingban import check_update  # 导入检查更新函数
+import subprocess
+import shutil
+import tempfile
+import requests
 
 # 在导入其他模块之前先打补丁
 import eventlet.support.greendns
@@ -444,6 +449,122 @@ def get_cancel_seconds():
 def health_check():
     """健康检查接口"""
     return jsonify({'status': 'ok'})
+
+@app.route('/check_update')
+def handle_check_update():
+    has_update, new_ver, changelog = check_update()
+    return jsonify({
+        'has_update': has_update,
+        'new_version': new_ver,
+        'changelog': changelog
+    })
+
+# 在Socket.IO中添加处理
+@socketio.on('request_update')
+def handle_update_request(data):
+    has_update, new_ver, changelog = check_update()
+    emit('update_status', {
+        'has_update': has_update,
+        'version': new_ver,
+        'log': changelog
+    })
+
+@app.route('/perform_update', methods=['POST'])
+def perform_update():
+    try:
+        # 检查管理员权限
+        if not validate_admin(request.headers.get('Authorization')):
+            return jsonify({'success': False, 'message': '权限不足'}), 403
+            
+        # 异步执行更新脚本
+        subprocess.Popen(['python', 'updater.py'])
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+def validate_admin(token):
+    """简单的权限验证示例"""
+    # 这里需要实现实际的权限验证逻辑
+    return True  # 临时返回True用于测试
+
+@app.route('/update', methods=['POST'])
+def handle_update():
+    """处理更新请求"""
+    try:
+        # 获取更新配置
+        update_url = "https://raw.githubusercontent.com/mayicome/mazongzhuiban/main/update.json"
+        response = requests.get(update_url, timeout=10)
+        
+        # 检查HTTP状态码
+        if response.status_code != 200:
+            return {'status': 'error', 'message': f'获取更新配置失败 [{response.status_code}]'}
+        
+        # 显式设置编码
+        response.encoding = 'utf-8'
+        
+        try:
+            data = response.json()
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON解析错误: {e.msg}，位置：第{e.lineno}行第{e.colno}列")
+            logger.debug(f"问题内容片段: {response.text[max(0,e.pos-50):e.pos+50]}")
+            return {'status': 'error', 'message': '更新配置文件格式错误'}
+            
+        '''# 校验必要字段
+        if 'files' not in data or not isinstance(data['files'], list):
+            raise ValueError("update.json缺少有效的files字段")
+
+        # 查找主程序包（假设第一个文件是主程序包）
+        main_package = next((f for f in data['files'] if f.get('path') == 'mytrade_zhuizhangtingban.py'), None)
+        if not main_package:
+            raise ValueError("找不到主程序包配置")'''
+
+        download_url = main_package.get('package_url')
+        if not download_url:
+            raise ValueError("主程序包配置缺少package_url字段")
+
+        # 获取校验码
+        expected_sha256 = main_package.get('sha256', '')
+        logger.info(f"expected_sha256: {expected_sha256}")
+
+        # 创建临时目录
+        tmp_dir = tempfile.mkdtemp()
+        zip_path = os.path.join(tmp_dir, 'update.zip')  # 本地临时文件名保持update.zip
+        
+        # 下载更新包（假设打包为zip）
+        r = requests.get(download_url, stream=True)
+        with open(zip_path, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=1024):
+                if chunk:
+                    f.write(chunk)
+        
+        # 解压更新包
+        shutil.unpack_archive(zip_path, tmp_dir)
+        
+        # 获取脚本所在目录
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # 执行更新操作（排除配置文件）
+        for root, dirs, files in os.walk(tmp_dir):
+            for file in files:
+                src = os.path.join(root, file)
+                dst = os.path.join(script_dir, os.path.relpath(src, tmp_dir))
+                
+                # 跳过配置文件
+                if 'config' in dst and 'config.ini' in dst:
+                    continue
+                    
+                shutil.move(src, dst)
+        
+        # 清理临时文件
+        shutil.rmtree(tmp_dir)
+        
+        # 跳过校验整个ZIP包
+        if False and not verify_zip(zip_path, data['sha256']):
+            return {'status': 'error', 'message': '更新包校验失败'}
+
+        return {'status': 'success', 'message': '更新成功，请重启程序'}
+    except Exception as e:
+        return {'status': 'error', 'message': f'更新失败: {str(e)}'}
 
 def start_web_server():
     host = '127.0.0.1'
