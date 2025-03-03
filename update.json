@@ -1,12 +1,6 @@
 {
     "version": "1.0.1",
     "changelog": "1. 修复了交易逻辑的BUG\n2. 优化了性能",
-    "files": [
-        {
-            "url": "https://your-domain.com/mytrade_zhuizhangtingban.py",
-            "package_url": "https://github.com/mayicome/mazongzhuiban/archive/refs/heads/main.zip",
-            "path": "mytrade_zhuizhangtingban.py",
-            "sha256": "文件校验码"
-        }
-    ]
+    "package_url": "https://github.com/mayicome/mazongzhuiban/archive/refs/heads/main.zip",
+    "sha256": "这里填整个ZIP包的校验值"
 }
