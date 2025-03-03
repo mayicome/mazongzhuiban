@@ -4,7 +4,7 @@
     "files": [
         {
             "url": "https://your-domain.com/mytrade_zhuizhangtingban.py",
-            "package_url": "https://github.com/mayicome/mazongzhuiban/archive/refs/heads/main.zip"
+            "package_url": "https://github.com/mayicome/mazongzhuiban/archive/refs/heads/main.zip",
             "path": "mytrade_zhuizhangtingban.py",
             "sha256": "文件校验码"
         }
