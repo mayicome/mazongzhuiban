@@ -35,7 +35,7 @@ def run_update():
     """执行更新流程"""
     try:
         # 1. 获取更新配置
-        config = requests.get("https://your-domain.com/update.json").json()
+        config = requests.get("https://github.com/mayicome/mazongzhuiban.git/update.json").json()
         
         # 2. 创建备份
         file_list = [f['path'] for f in config['files']]

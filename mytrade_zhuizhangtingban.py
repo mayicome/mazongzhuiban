@@ -28,7 +28,7 @@ def check_update():
     """
     try:
         # 从你的版本服务器获取信息（可以用GitHub/Gitee的raw文件）
-        update_url = "https://your-domain.com/update.json"
+        update_url = "https://raw.githubusercontent.com/mayicome/mazongzhuiban/main/update.json"
         response = requests.get(update_url, timeout=5)
         data = response.json()
         
@@ -1243,12 +1243,7 @@ if __name__ == '__main__':
     # 添加更新检查
     has_update, new_ver, changelog = check_update()
     if has_update:
-        print(f"发现新版本 {new_ver}，更新内容：")
-        print(changelog)
-        choice = input("是否立即更新？(y/n)").lower()
-        if choice == 'y':
-            run_updater()  # 启动更新程序
-            sys.exit(0)
+        logger.info(f"发现新版本 {new_ver}，更新内容：{changelog}")
 
     # 阻塞主线程退出
     xt_trader.run_forever()
