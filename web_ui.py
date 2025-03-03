@@ -543,17 +543,35 @@ def handle_update():
         # 获取脚本所在目录
         script_dir = os.path.dirname(os.path.abspath(__file__))
         
-        # 执行更新操作（排除配置文件）
-        for root, dirs, files in os.walk(tmp_dir):
+        # 解压后处理目录结构
+        extracted_dir = os.path.join(tmp_dir, os.listdir(tmp_dir)[0])
+        src_dir = os.path.join(extracted_dir, "mazongzhuiban-main")
+
+        # 兼容处理：如果目录结构变化
+        if not os.path.exists(src_dir):
+            src_dir = extracted_dir
+
+        # 核心文件保护列表（不会被覆盖）
+        protected_files = [
+            'config.ini',
+            'custom_strategy.py',
+            'user_settings.json'
+        ]
+
+        for root, dirs, files in os.walk(src_dir):
             for file in files:
-                src = os.path.join(root, file)
-                dst = os.path.join(script_dir, os.path.relpath(src, tmp_dir))
+                src_path = os.path.join(root, file)
+                rel_path = os.path.relpath(src_path, src_dir)
+                dest_path = os.path.join(script_dir, rel_path)
+                
+                # 创建目标目录
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
                 
                 # 跳过配置文件
                 if 'config' in dst and 'config.ini' in dst:
                     continue
                     
-                shutil.move(src, dst)
+                shutil.copy2(src_path, dest_path)
         
         # 清理临时文件
         shutil.rmtree(tmp_dir)
