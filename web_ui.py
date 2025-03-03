@@ -561,10 +561,23 @@ def handle_update():
         # 跳过校验整个ZIP包
         if False and not verify_zip(zip_path, data['sha256']):
             return {'status': 'error', 'message': '更新包校验失败'}
-
+        logger.info("更新成功，请重启程序")
         return {'status': 'success', 'message': '更新成功，请重启程序'}
     except Exception as e:
         return {'status': 'error', 'message': f'更新失败: {str(e)}'}
+
+@app.route('/get_version')
+def get_version():
+    try:
+        with open('update.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return jsonify({
+                'current_version': data['version'],
+                'require_restart': data.get('require_restart', False)
+            })
+    except Exception as e:
+        logger.error(f"获取版本失败: {str(e)}")
+        return jsonify({'current_version': '未知', 'require_restart': False})
 
 def start_web_server():
     host = '127.0.0.1'
