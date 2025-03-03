@@ -518,13 +518,13 @@ def handle_update():
         if not main_package:
             raise ValueError("找不到主程序包配置")'''
 
-        download_url = main_package.get('package_url')
+        download_url = data.get('package_url')
         if not download_url:
             raise ValueError("主程序包配置缺少package_url字段")
 
-        # 获取校验码
-        expected_sha256 = main_package.get('sha256', '')
-        logger.info(f"expected_sha256: {expected_sha256}")
+        '''# 获取校验码
+        expected_sha256 = data.get('sha256', '')
+        logger.info(f"expected_sha256: {expected_sha256}")'''
 
         # 创建临时目录
         tmp_dir = tempfile.mkdtemp()
