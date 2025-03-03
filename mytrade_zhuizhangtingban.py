@@ -1131,7 +1131,7 @@ if __name__ == '__main__':
                 os._exit(0)
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
-    DEBUG = False
+    DEBUG = True
     if not DEBUG:
         #如果今天不是交易日，则跳过
         if not is_tradeday():
