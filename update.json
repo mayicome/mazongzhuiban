@@ -1,5 +1,5 @@
 {
-    "version": "1.0.1",
+    "version": "1.0.2",
     "changelog": "1. 修复了交易逻辑的BUG\n2. 优化了性能",
     "files": [
         {
