@@ -1,5 +1,5 @@
 {
-    "version": "1.0.3",
+    "version": "1.0.4",
     "changelog": "1. 修复了交易逻辑的BUG\n2. 优化了性能",
     "package_url": "https://github.com/mayicome/mazongzhuiban/archive/refs/heads/main.zip",
     "sha256": "39da7d49b0c5d3bb6c15310ff6e72987ec72dc6c2fe68c7ef5e5c1ac44ae2553"
