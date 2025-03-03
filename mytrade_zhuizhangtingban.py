@@ -36,7 +36,6 @@ def check_update():
         has_update = latest_version > current_version
         return has_update, remote_data['version'], remote_data['changelog']
     except Exception as e:
-        logger.error(f"检查更新失败: {e}")
         return False, "", ""
 
 # 读取今日已买入股票列表

@@ -453,12 +453,31 @@ def health_check():
 
 @app.route('/check_update')
 def handle_check_update():
-    has_update, new_ver, changelog = check_update()
-    return jsonify({
-        'has_update': has_update,
-        'new_version': new_ver,
-        'changelog': changelog
-    })
+    try:
+        has_update, latest_version, changelog = check_update()
+        logger.info(f"检查更新: 当前版本: {get_current_version()}, 最新版本: {latest_version}")
+        return jsonify({
+            'has_update': has_update,
+            'latest_version': latest_version,
+            'changelog': changelog
+        })
+    except Exception as e:
+        error_msg = f"检查更新时发生错误: {str(e)}"
+        logger.error(error_msg, exc_info=True)  # 添加exc_info=True来记录完整堆栈
+        return jsonify({
+            'has_update': False,
+            'error': error_msg
+        })
+
+def get_current_version():
+    """获取当前版本号"""
+    try:
+        with open('update.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data['version']
+    except Exception as e:
+        logger.error(f"读取版本号失败: {e}")
+        return "未知"
 
 # 在Socket.IO中添加处理
 @socketio.on('request_update')
