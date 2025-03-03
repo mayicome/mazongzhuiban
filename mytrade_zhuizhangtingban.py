@@ -15,32 +15,29 @@ from market_data import my_market
 import requests
 from chncal import *
 import psutil
+import json
 
 xtdata.enable_hello = False  # 添加此行以隐藏欢迎消息
 
-# 在文件开头添加版本号
-__version__ = "1.0.0"  # 每次更新手动修改这个版本号
-
 def check_update():
-    """
-    检查更新核心逻辑
-    返回 (是否有更新, 最新版本号, 更新日志)
-    """
+    """检查更新核心逻辑"""
     try:
-        # 从你的版本服务器获取信息（可以用GitHub/Gitee的raw文件）
+        # 读取本地版本（从update.json）
+        with open('update.json', 'r', encoding='utf-8') as f:
+            local_data = json.load(f)
+            current_version = tuple(map(int, local_data['version'].split('.')))
+        
+        # 获取远程版本
         update_url = "https://raw.githubusercontent.com/mayicome/mazongzhuiban/main/update.json"
         response = requests.get(update_url, timeout=5)
-        data = response.json()
-        
-        # 比较版本
-        current_version = tuple(map(int, __version__.split('.')))
-        latest_version = tuple(map(int, data['version'].split('.')))
+        remote_data = response.json()
+        latest_version = tuple(map(int, remote_data['version'].split('.')))
         
         has_update = latest_version > current_version
-        return has_update, data['version'], data['changelog']
+        return has_update, remote_data['version'], remote_data['changelog']
     except Exception as e:
         logger.error(f"检查更新失败: {e}")
-        return False, __version__, ""
+        return False, "", ""
 
 # 读取今日已买入股票列表
 def read_bought_list():
