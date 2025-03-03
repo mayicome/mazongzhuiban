@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>蚂蚁量化炒股——马总打板策略（买入策略）</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto !important;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fff;
+        }
+
+        .table-container {
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+
+        .config-input {
+            width: 100%;
+        }
+
+        .config-label {
+            width: 200px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .config-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 15px;
+        }
+
+        .path-select-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex: 1;
+        }
+
+        .config-toggle {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            color: #0d6efd;
+            font-weight: 500;
+        }
+        
+        .config-toggle:hover {
+            color: #0056b3;
+        }
+        
+        .config-toggle i {
+            margin-right: 10px;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+
+        .config-section-title {
+            margin-top: 25px;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .card {
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+            margin-bottom: 20px;
+            border: none;
+            border-radius: 8px;
+        }
+
+        .card-title {
+            color: #333;
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+
+        .mb-1 {
+            margin-bottom: 0.5rem !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+        }
+
+        .asset-value {
+            font-weight: bold;
+            color: #28a745;
+            min-width: 80px;
+            display: inline-block;
+        }
+
+        .table {
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+
+        .table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .table td {
+            vertical-align: middle;
+        }
+
+        .btn {
+            padding: 0.375rem 1rem;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+            border-color: #0a58ca;
+        }
+
+        h2, h3, h5, h6 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .form-control {
+            border-radius: 4px;
+            border: 1px solid #ced4da;
+        }
+
+        .form-control:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 0.25rem rgba(13,110,253,.25);
+        }
+
+        /* 更新提示样式 */
+        #updateModal { /* 保持与现有弹窗一致 */ }
+        .btn-update { background: #28a745; }
+        .btn-cancel { background: #dc3545; }
+
+        /* 添加版本信息样式 */
+        .version-info {
+            position: fixed;
+            top: 10px;
+            right: 20px;
+            padding: 8px 15px;
+            background: rgba(255,255,255,0.9);
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .version-info:hover {
+            background: #fff;
+            transform: translateY(-2px);
+        }
+        .version-info i {
+            color: #1890ff;
+        }
+    </style>
+</head>
+<body>
+    <!-- 在 body 开始处添加提示框 -->
+    <div class="modal fade" id="refreshModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="refreshModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="refreshModalLabel">系统提示</h5>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">服务器已重启，需要刷新页面以继续使用。</p>
+                    <p class="mb-0 text-danger">注意：为保障交易安全，刷新以后买入股票的上限和撤单时间会恢复到0。如需继续交易请重新设置。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="window.location.reload()">立即刷新</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加保存成功提示 -->
+    <div class="alert alert-success" id="saveSuccess" style="display: none; position: fixed; top: 20px; right: 20px;">
+        配置保存成功！
+    </div>
+
+    <!-- 在 body 标签下添加 Toast 提示组件 -->
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        <div id="orderErrorToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-danger text-white">
+                <strong class="me-auto">请注意</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body" id="orderErrorMessage">
+            </div>
+        </div>
+    </div>
+
+    <div class="container mt-4">
+        <h2 class="text-center mb-4">蚂蚁量化炒股——马总打板策略（买入策略）</h2>
+        
+        <!-- 在页面右上角添加版本信息 -->
+        <div id="versionInfo" class="version-info" onclick="checkForUpdates()">
+            <i class="fas fa-code-branch"></i>
+            <span id="currentVersion">加载中...</span>
+        </div>
+        
+        <!-- 配置信息部分 -->
+        <div class="section">
+            <div class="config-toggle" onclick="toggleConfig()">
+                <i class="fas fa-cog"></i>配置参数
+            </div>
+            <div id="configSection" style="display: none;">
+                <!-- Account 配置 -->
+                <h5 class="config-section-title">账户配置</h5>
+                <div class="config-row">
+                    <label class="config-label">QMT路径:</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control config-input" id="PATH_QMT" value="{{ path_qmt }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="selectQmtPath()">选择路径</button>
+                    </div>
+                </div>
+                <div class="config-row">
+                    <label class="config-label">账户ID:</label>
+                    <input type="text" class="form-control config-input" id="ACCOUNT_ID" value="{{ account_id }}">
+                </div>
+
+                <!-- Trading 配置 -->
+                <h5 class="config-section-title">热门板块数量配置</h5>
+                <div class="config-row">
+                    <label class="config-label">热门板块数量:</label>
+                    <input type="number" class="form-control config-input" id="TOP_N_BOARDS" value="{{ top_n_boards }}">
+                </div>
+                <div class="config-row">
+                    <label class="config-label">热门股票数量:</label>
+                    <input type="number" class="form-control config-input" id="TOP_N_STOCKS" value="{{ top_n_stocks }}">
+                </div>
+                <div class="config-row">
+                    <label class="config-label">获取热门板块间隔(秒):</label>
+                    <input type="number" class="form-control config-input" id="INTERVAL_GET_HOT_BOARDS" value="{{ interval_get_hot_boards }}">
+                </div>
+
+                <!-- MA 配置 -->
+                <h5 class="config-section-title">均线配置</h5>
+                <div class="config-row">
+                    <label class="config-label">布林带天数:</label>
+                    <input type="number" class="form-control config-input" id="BOLL_DAYS" value="{{ boll_days }}">
+                </div>
+                <div class="config-row">
+                    <label class="config-label">布林带倍数:</label>
+                    <input type="number" class="form-control config-input" id="BOLL_MULTIPLES" value="{{ boll_multiples }}">
+                </div>
+                <div class="config-row">
+                    <label class="config-label">5日均线:</label>
+                    <input type="number" class="form-control config-input" id="MA_5" value="{{ ma_5 }}">
+                </div>
+
+                <!-- Threshold 配置 -->
+                <h5 class="config-section-title">阈值配置</h5>
+                <div class="config-row">
+                    <label class="config-label">当前涨幅阈值(涨停板10%):</label>
+                    <input type="number" step="0.1" class="form-control config-input" id="THRESHOLD_CUR_UPDOWNRATE_10PCT" value="{{ threshold_cur_10pct }}">
+                </div>
+                <div class="config-row">
+                    <label class="config-label">历史涨幅阈值(涨停板10%):</label>
+                    <input type="number" step="0.1" class="form-control config-input" id="THRESHOLD_HIST_UPDOWNRATE_10PCT" value="{{ threshold_hist_10pct }}">
+                </div>
+                <div class="config-row">
+                    <label class="config-label">当前涨幅阈值(涨停板20%):</label>
+                    <input type="number" step="0.1" class="form-control config-input" id="THRESHOLD_CUR_UPDOWNRATE_20PCT" value="{{ threshold_cur_20pct }}">
+                </div>
+                <div class="config-row">
+                    <label class="config-label">历史涨幅阈值(涨停板20%):</label>
+                    <input type="number" step="0.1" class="form-control config-input" id="THRESHOLD_HIST_UPDOWNRATE_20PCT" value="{{ threshold_hist_20pct }}">
+                </div>
+                <div class="config-row">
+                    <label class="config-label">当前涨幅阈值(涨停板30%):</label>
+                    <input type="number" step="0.1" class="form-control config-input" id="THRESHOLD_CUR_UPDOWNRATE_30PCT" value="{{ threshold_cur_30pct }}">
+                </div>
+                <div class="config-row">
+                    <label class="config-label">历史涨幅阈值(涨停板30%):</label>
+                    <input type="number" step="0.1" class="form-control config-input" id="THRESHOLD_HIST_UPDOWNRATE_30PCT" value="{{ threshold_hist_30pct }}">
+                </div>
+
+                <!-- Days 配置 -->
+                <h5 class="config-section-title">历史天数配置</h5>
+                <div class="config-row">
+                    <label class="config-label">最大涨幅观察交易日天数:</label>
+                    <input type="number" class="form-control config-input" id="NDAYS_BEFORE_1" value="{{ ndays_before_1 }}">
+                </div>
+                <div class="config-row">
+                    <label class="config-label">趋势观察交易日天数:</label>
+                    <input type="number" class="form-control config-input" id="NDAYS_BEFORE_2" value="{{ ndays_before_2 }}">
+                </div>
+                <div class="config-row">
+                    <label class="config-label">最高价观察交易日天数:</label>
+                    <input type="number" class="form-control config-input" id="NDAYS_BEFORE_3" value="{{ ndays_before_3 }}">
+                </div>
+                <div class="config-row">
+                    <label class="config-label">涨停板观察交易日天数:</label>
+                    <input type="number" class="form-control config-input" id="NDAYS_BEFORE_4" value="{{ ndays_before_4 }}">
+                </div>
+
+                <!-- 保存按钮 -->
+                <div class="config-row" style="justify-content: flex-end; margin-top: 20px;">
+                    <button class="btn btn-primary" onclick="saveConfig()">保存配置</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 交易信息部分 -->
+        <div class="section">
+            <h3 class="text-center">交易信息</h3>
+            <div class="row mb-3">
+                <div class="col">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5>账户信息</h5>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <p class="mb-1">账户ID: <span data-field="account_id" class="asset-value">-</span></p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p class="mb-1">可用资金: <span data-field="cash" class="asset-value">-</span></p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p class="mb-1">持仓市值: <span data-field="market_value" class="asset-value">-</span></p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p class="mb-1">总资产: <span data-field="total_asset" class="asset-value">-</span></p>
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-md-4">
+                                    <div class="input-group">
+                                        <span class="input-group-text">多少秒后撤单:</span>
+                                        <input type="number" class="form-control" id="cancelOrderSeconds" value="0" 
+                                               onchange="updateCancelSeconds(this.value)">
+                                        <span class="input-group-text">秒</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="input-group">
+                                        <span class="input-group-text">单股买入金额上限:</span>
+                                        <input type="number" class="form-control" id="singleBuyAmount" value="0" 
+                                               onchange="updateSingleBuyAmount(this.value)">
+                                        <span class="input-group-text">元</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="input-group">
+                                        <span class="input-group-text">买入股票支数上限:</span>
+                                        <input type="number" class="form-control" id="maxStocksPerDay" value="0" 
+                                               onchange="updateMaxStocks(this.value)">
+                                        <span class="input-group-text">支</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 持仓信息表格 -->
+            <div class="table-container">
+                <h5>持仓信息</h5>
+                <table class="table table-striped table-hover" id="positions-table">
+                    <thead>
+                        <tr>
+                            <th>证券代码</th>
+                            <th>证券名称</th>
+                            <th>数量</th>
+                            <th>可用</th>
+                            <th>成本</th>
+                            <th>市值</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- 委托信息表格 -->
+            <div class="table-container mt-4">
+                <h5>委托信息</h5>
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>委托时间</th>
+                            <th>证券代码</th>
+                            <th>证券名称</th>
+                            <th>委托类型</th>
+                            <th>报价类型</th>
+                            <th>委托价格</th>
+                            <th>委托数量</th>
+                            <th>状态</th>
+                            <th>状态描述</th>
+                            <th>策略名称</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orders-table-body">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 成交信息表格 -->
+            <div class="table-container mt-4">
+                <h5>成交信息</h5>
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>成交时间</th>
+                            <th>证券代码</th>
+                            <th>证券名称</th>
+                            <th>成交类型</th>
+                            <th>成交价格</th>
+                            <th>成交数量</th>
+                            <th>策略名称</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 市场信息部分 -->
+        <div class="section">
+            <h3 class="text-center">市场信息</h3>
+            <div class="row">
+                <!-- 新增：选中的股票部分 -->
+                <div class="col-12 mb-4">
+                    <h5 class="text-center mb-3">选中的股票</h5>
+                    <div class="table-container">
+                        <table class="table table-striped table-hover" id="selectedTable">
+                            <thead>
+                                <tr>
+                                    <th>板块类别</th>
+                                    <th>板块名称</th>
+                                    <th>代码</th>
+                                    <th>名称</th>
+                                    <th>最新价</th>
+                                    <th>涨跌幅</th>
+                                    <th>上榜时间</th>
+                                    <th>分析结果</th>
+                                    <th>下单状态</th>
+                                    <th>龙虎榜天数</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 原有的行业和概念板块部分 -->
+                <div class="col-md-6">
+                    <h5 class="text-center mb-3">热门行业板块</h5>
+                    <div class="table-container">
+                        <table class="table table-striped table-hover" id="industryTable">
+                            <thead>
+                                <tr>
+                                    <th>板块</th>
+                                    <th>代码</th>
+                                    <th>名称</th>
+                                    <th>最新价</th>
+                                    <th>涨跌幅</th>
+                                    <th>分析结果</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h5 class="text-center mb-3">热门概念板块</h5>
+                    <div class="table-container">
+                        <table class="table table-striped table-hover" id="conceptTable">
+                            <thead>
+                                <tr>
+                                    <th>板块</th>
+                                    <th>代码</th>
+                                    <th>名称</th>
+                                    <th>最新价</th>
+                                    <th>涨跌幅</th>
+                                    <th>分析结果</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新增更新提示弹窗 -->
+    <div class="modal fade" id="updateModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">发现新版本!</h5>
+                </div>
+                <div class="modal-body">
+                    <p>最新版本: <span id="newVersion"></span></p>
+                    <pre id="changelogContent" class="bg-light p-3"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">稍后再说</button>
+                    <button type="button" class="btn btn-primary" onclick="performUpdate()">立即更新</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        // 使用 RequestAnimationFrame 来控制更新频率
+        let lastTradingUpdate = 0;
+        let lastMarketUpdate = 0;
+
+        function updateLoop(timestamp) {
+            // 检查是否需要更新交易信息（每3秒）
+            if (timestamp - lastTradingUpdate >= 3000) {
+                updateTradingInfo();
+                lastTradingUpdate = timestamp;
+            }
+            
+            // 检查是否需要更新市场信息（每1秒）
+            if (timestamp - lastMarketUpdate >= 1000) {
+                updateMarketInfo();
+                lastMarketUpdate = timestamp;
+            }
+            
+            // 继续循环
+            requestAnimationFrame(updateLoop);
+        }
+
+        // 启动更新循环
+        requestAnimationFrame(updateLoop);
+
+        // 保存配置
+        function saveConfig() {
+            const configData = {
+                'Trading': {},
+                'MA': {},
+                'Account': {},
+                'Threshold': {},
+                'Days': {}
+            };
+            
+            // Account
+            configData.Account.PATH_QMT = document.getElementById('PATH_QMT').value;
+            configData.Account.ACCOUNT_ID = document.getElementById('ACCOUNT_ID').value;
+            
+            // Trading
+            configData.Trading.TOP_N_BOARDS = document.getElementById('TOP_N_BOARDS').value;
+            configData.Trading.TOP_N_STOCKS = document.getElementById('TOP_N_STOCKS').value;
+            configData.Trading.INTERVAL_GET_HOT_BOARDS = document.getElementById('INTERVAL_GET_HOT_BOARDS').value;
+            
+            // MA
+            configData.MA.BOLL_DAYS = document.getElementById('BOLL_DAYS').value;
+            configData.MA.BOLL_MULTIPLES = document.getElementById('BOLL_MULTIPLES').value;
+            configData.MA.MA_5 = document.getElementById('MA_5').value;
+            
+            // Threshold
+            configData.Threshold.THRESHOLD_CUR_UPDOWNRATE_10PCT = document.getElementById('THRESHOLD_CUR_UPDOWNRATE_10PCT').value;
+            configData.Threshold.THRESHOLD_HIST_UPDOWNRATE_10PCT = document.getElementById('THRESHOLD_HIST_UPDOWNRATE_10PCT').value;
+            configData.Threshold.THRESHOLD_CUR_UPDOWNRATE_20PCT = document.getElementById('THRESHOLD_CUR_UPDOWNRATE_20PCT').value;
+            configData.Threshold.THRESHOLD_HIST_UPDOWNRATE_20PCT = document.getElementById('THRESHOLD_HIST_UPDOWNRATE_20PCT').value;
+            configData.Threshold.THRESHOLD_CUR_UPDOWNRATE_30PCT = document.getElementById('THRESHOLD_CUR_UPDOWNRATE_30PCT').value;
+            configData.Threshold.THRESHOLD_HIST_UPDOWNRATE_30PCT = document.getElementById('THRESHOLD_HIST_UPDOWNRATE_30PCT').value;
+            
+            // Days
+            configData.Days.NDAYS_BEFORE_1 = document.getElementById('NDAYS_BEFORE_1').value;
+            configData.Days.NDAYS_BEFORE_2 = document.getElementById('NDAYS_BEFORE_2').value;
+            configData.Days.NDAYS_BEFORE_3 = document.getElementById('NDAYS_BEFORE_3').value;
+            configData.Days.NDAYS_BEFORE_4 = document.getElementById('NDAYS_BEFORE_4').value;
+            
+            console.log('Saving config:', configData);  // 调试日志
+            
+            // 发送到后端
+            fetch('/save_config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(configData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 显示保存成功提示
+                    const saveSuccess = document.getElementById('saveSuccess');
+                    saveSuccess.style.display = 'block';
+                    setTimeout(() => {
+                        saveSuccess.style.display = 'none';
+                    }, 3000);
+                    console.log('Config saved successfully');
+                } else {
+                    alert('保存失败: ' + (data.error || '未知错误'));
+                    console.error('Failed to save config:', data.error);
+                }
+            })
+            .catch(error => {
+                alert('保存失败: ' + error);
+                console.error('Error saving config:', error);
+            });
+        }
+
+        function toggleConfig() {
+            var configSection = document.getElementById('configSection');
+            if (configSection.style.display === 'none') {
+                configSection.style.display = 'block';
+            } else {
+                configSection.style.display = 'none';
+            }
+        }
+
+        function selectQmtPath() {
+            fetch('/select_qmt_path', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('PATH_QMT').value = data.path;
+                    showSaveSuccess();
+                } else {
+                    alert('选择路径失败: ' + (data.error || '未知错误'));
+                }
+            })
+            .catch(error => {
+                console.error('选择路径出错:', error);
+                alert('选择路径出错');
+            });
+        }
+
+        // 格式化金额的函数
+        function formatMoney(value) {
+            if (value === undefined || value === null) return '-';
+            return new Intl.NumberFormat('zh-CN', {
+                style: 'decimal',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(value);
+        }
+
+        function updateTradingInfo() {
+            fetch('/api/trading_info')
+                .then(response => response.json())
+                .then(data => {
+                    const asset = data.asset;
+                    if (asset) {
+                        document.querySelectorAll('.asset-value').forEach(element => {
+                            const field = element.getAttribute('data-field');
+                            if (field in asset) {
+                                const value = field === 'account_id' ? 
+                                    asset[field] : 
+                                    formatMoney(asset[field]);
+                                element.textContent = value;
+                            }
+                        });
+                    }
+                    
+                    updatePositionsTable(data.positions);
+
+                    // 更新委托信息
+                    const ordersTableBody = document.getElementById('orders-table-body');
+                    ordersTableBody.innerHTML = '';
+                    data.orders.forEach(order => {
+                        ordersTableBody.innerHTML += `
+                            <tr>
+                            <td>${order.order_time}</td>
+                            <td>${order.stock_code}</td>
+                            <td>${order.stock_name}</td>
+                            <td>${order.order_type}</td>
+                            <td>${order.price_type}</td>
+                            <td>${formatMoney(order.price)}</td>
+                            <td>${order.order_volume}</td>
+                            <td>${order.order_status}</td>
+                            <td>${order.status_msg}</td>
+                            <td>${order.strategy_name}</td>
+                            </tr>
+                        `;
+                    });
+
+                    // 更新成交信息
+                    const tradesTableBody = document.getElementById('trades-table-body');
+                    tradesTableBody.innerHTML = '';
+                    data.trades.forEach(trade => {
+                        tradesTableBody.innerHTML += `
+                            <tr>
+                                <td>${trade.traded_time}</td>
+                                <td>${trade.stock_code}</td>
+                                <td>${trade.stock_name}</td>
+                                <td>${trade.order_type}</td>
+                                <td>${trade.traded_price}</td>
+                                <td>${trade.traded_volume}</td>
+                                <td>${trade.strategy_name}</td>
+                            </tr>
+                        `;
+                    });
+
+                    // 检查是否有toast消息
+                    if (data.toast_message) {
+                        showToastMessage(data.toast_message);
+                    }
+                })
+                .catch(error => {
+                    console.error('获取交易信息失败:', error);
+                });
+        }
+
+        function updatePositionsTable(positions) {
+            const tbody = document.querySelector('#positions-table tbody');
+            tbody.innerHTML = '';
+            if (positions && positions.length > 0) {
+                positions.forEach(pos => {
+                    const row = tbody.insertRow();
+                    row.insertCell().textContent = pos.stock_code;
+                    row.insertCell().textContent = pos.stock_name;
+                    row.insertCell().textContent = pos.volume;
+                    row.insertCell().textContent = pos.can_use_volume;
+                    row.insertCell().textContent = formatMoney(pos.open_price);
+                    row.insertCell().textContent = formatMoney(pos.market_value);
+                });
+            }
+        }
+
+        function updateMarketInfo() {
+            fetch('/api/market_info')
+                .then(response => response.json())
+                .then(data => {
+                    updateMarketTable(data);
+                })
+                .catch(error => {
+                    console.error('获取市场数据失败:', error);
+                });
+        }
+
+        function updateMarketTable(data) {
+            // 更新选中的股票表格
+            const selectedTable = document.getElementById('selectedTable');
+            if (selectedTable && data.selected && data.selected.length > 0) {
+                const tbody = selectedTable.querySelector('tbody');
+                tbody.innerHTML = '';
+                data.selected.forEach(item => {
+                    const row = tbody.insertRow();
+                    row.insertCell().textContent = item['板块类别'];
+                    row.insertCell().textContent = item['板块'];
+                    row.insertCell().textContent = item['代码'];
+                    row.insertCell().textContent = item['名称'];
+                    row.insertCell().textContent = item['最新价'];
+                    row.insertCell().textContent = item['涨跌幅'];
+                    row.insertCell().textContent = item['上榜时间'];
+                    row.insertCell().textContent = item['分析结果'];
+                    row.insertCell().textContent = item['下单状态'];
+                    row.insertCell().textContent = item['龙虎榜天数'];
+                });
+            }
+            
+            // 更新概念板块表格
+            const conceptTable = document.getElementById('conceptTable');
+            if (conceptTable && data.concept && data.concept.length > 0) {
+                const tbody = conceptTable.querySelector('tbody');
+                tbody.innerHTML = '';
+                data.concept.forEach(item => {
+                    const row = tbody.insertRow();
+                    row.insertCell().textContent = item['板块'];
+                    row.insertCell().textContent = item['代码'];
+                    row.insertCell().textContent = item['名称'];
+                    row.insertCell().textContent = item['最新价'];
+                    row.insertCell().textContent = item['涨跌幅'];
+                    row.insertCell().textContent = item['分析结果'];
+                });
+            }
+            
+            // 更新行业板块表格
+            const industryTable = document.getElementById('industryTable');
+            if (industryTable && data.industry && data.industry.length > 0) {
+                const tbody = industryTable.querySelector('tbody');
+                tbody.innerHTML = '';
+                data.industry.forEach(item => {
+                    const row = tbody.insertRow();
+                    row.insertCell().textContent = item['板块'];
+                    row.insertCell().textContent = item['代码'];
+                    row.insertCell().textContent = item['名称'];
+                    row.insertCell().textContent = item['最新价'];
+                    row.insertCell().textContent = item['涨跌幅'];
+                    row.insertCell().textContent = item['分析结果'];
+                });
+            }
+        }
+
+        // 添加更新函数
+        function updateSingleBuyAmount(value) {
+            globalSingleBuyAmount = parseFloat(value);
+            // 发送到后端保存
+            fetch('/update_single_buy_amount', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ single_buy_amount: globalSingleBuyAmount })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 显示保存成功提示
+                    const saveSuccess = document.getElementById('saveSuccess');
+                    saveSuccess.style.display = 'block';
+                    setTimeout(() => {
+                        saveSuccess.style.display = 'none';
+                    }, 3000);
+                    console.log('单次买入金额更新成功');
+                } else {
+                    alert('更新单次买入金额失败: ' + (data.error || '未知错误'));
+                }
+            })
+            .catch(error => {
+                console.error('更新单次买入金额出错:', error);
+                alert('更新单次买入金额出错');
+            });
+        }
+
+        function updateMaxStocks(value) {
+            fetch('/update_max_stocks', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ max_stocks: parseInt(value) })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const saveSuccess = document.getElementById('saveSuccess');
+                    saveSuccess.style.display = 'block';
+                    setTimeout(() => {
+                        saveSuccess.style.display = 'none';
+                    }, 3000);
+                    console.log('买入股票支数限制更新成功');
+                } else {
+                    alert('更新买入股票支数限制失败: ' + (data.error || '未知错误'));
+                }
+            })
+            .catch(error => {
+                console.error('更新买入股票支数限制出错:', error);
+                alert('更新买入股票支数限制出错');
+            });
+        }
+
+        function updateCancelSeconds(value) {
+            fetch('/update_cancel_seconds', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ cancel_seconds: parseInt(value) })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const saveSuccess = document.getElementById('saveSuccess');
+                    saveSuccess.style.display = 'block';
+                    setTimeout(() => {
+                        saveSuccess.style.display = 'none';
+                    }, 3000);
+                    console.log('撤单时间更新成功');
+                } else {
+                    alert('更新撤单时间失败: ' + (data.error || '未知错误'));
+                }
+            })
+            .catch(error => {
+                console.error('更新撤单时间出错:', error);
+                alert('更新撤单时间出错');
+            });
+        }
+
+        // 在页面加载时获取保存的值
+        document.addEventListener('DOMContentLoaded', () => {
+            // 原有的代码
+            updateTradingInfo();
+            updateMarketInfo();
+            
+            // 新增：获取保存的单次买入金额
+            fetch('/get_single_buy_amount')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.amount) {
+                        globalSingleBuyAmount = data.amount;
+                        document.getElementById('singleBuyAmount').value = data.amount;
+                    }
+                })
+                .catch(error => {
+                    console.error('获取单次买入金额失败:', error);
+                });
+            
+            // 获取买入股票支数限制
+            fetch('/get_max_stocks')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.amount) {
+                        document.getElementById('maxStocksPerDay').value = data.amount;
+                    }
+                })
+                .catch(error => {
+                    console.error('获取买入股票支数限制失败:', error);
+                });
+            
+            // 获取撤单时间
+            fetch('/get_cancel_seconds')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.amount) {
+                        document.getElementById('cancelOrderSeconds').value = data.amount;
+                    }
+                })
+                .catch(error => {
+                    console.error('获取撤单时间失败:', error);
+                });
+        });
+
+        // 定期更新交易信息
+        setInterval(updateTradingInfo, 5000);  // 每5秒更新一次
+
+        // 显示toast消息提示
+        function showToastMessage(message) {
+            const toastEl = document.getElementById('toastMessage');
+            const messageEl = document.getElementById('toastMessageText');
+            messageEl.textContent = message;
+            
+
+            const toast = new bootstrap.Toast(toastEl, {
+                animation: true,
+                autohide: true,
+                delay: 15000
+            });
+            toast.show();
+        }
+
+        // 建立 WebSocket 连接
+        const socket = io();
+        let refreshModal;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshModal = new bootstrap.Modal(document.getElementById('refreshModal'));
+        });
+        
+        // 监听服务器重启事件
+        socket.on('connect', function() {
+            console.log('Connected to server');
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('Disconnected from server');
+            // 当连接断开时，开始尝试重连
+            setTimeout(tryReconnect, 2000);
+        });
+        
+        function tryReconnect() {
+            // 尝试重新连接
+            fetch('/api/health_check')
+                .then(response => {
+                    if (response.ok) {
+                        // 服务器已经重启完成，显示提示框
+                        refreshModal.show();
+                    } else {
+                        // 继续尝试
+                        setTimeout(tryReconnect, 2000);
+                    }
+                })
+                .catch(() => {
+                    // 如果请求失败，继续尝试
+                    setTimeout(tryReconnect, 2000);
+                });
+        }
+
+        // 页面加载完成后检查更新
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('/check_update')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.has_update) {
+                        document.getElementById('newVersion').textContent = data.new_version;
+                        document.getElementById('changelogContent').textContent = data.changelog;
+                        new bootstrap.Modal(document.getElementById('updateModal')).show();
+                    }
+                });
+        });
+
+        // 执行更新
+        function performUpdate() {
+            const btn = document.querySelector('#updateModal .btn-primary');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 更新中...';
+            
+            fetch('/update', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast('success', '更新成功，请注意，只有重启程序之后更新才会生效。');
+                        //setTimeout(() => window.location.reload(), 5000);
+                    } else {
+                        showToast('danger', '更新失败: ' + (data.message || '未知错误'));
+                    }
+                })
+                .catch(error => {
+                    showToast('danger', '更新请求失败: ' + error.message);
+                })
+                .finally(() => {
+                    btn.innerHTML = originalHtml;
+                });
+        }
+
+        // 通用提示方法（复用现有showToast或新增）
+        function showToast(type, message) {
+            // 可复用页面已有的toast组件
+            const toastEl = document.getElementById('orderErrorToast');
+            toastEl.querySelector('.toast-body').textContent = message;
+            toastEl.classList.add('bg-'+type);
+            new bootstrap.Toast(toastEl).show();
+        }
+
+        // 在现有脚本中添加
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取当前版本
+            fetch('/get_version')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('currentVersion').textContent = `v${data.current_version}`;
+                    if(data.require_restart) {
+                        showToast('warning', '请重启程序以应用最新更新');
+                    }
+                });
+            
+            // 原有初始化代码...
+        });
+
+        // 修改更新提示逻辑
+        function showUpdateModal(version, changelog) {
+            document.getElementById('newVersion').textContent = version;
+            document.getElementById('changelog').innerHTML = changelog.replace(/\n/g, '<br>');
+            
+            // 添加版本对比提示
+            fetch('/get_version')
+                .then(r => r.json())
+                .then(data => {
+                    const currentVer = data.current_version;
+                    document.getElementById('currentVersion').innerHTML = `
+                        <span style="color: #ff4d4f;">v${currentVer}</span> 
+                        → 
+                        <span style="color: #52c41a;">v${version}</span>
+                    `;
+                });
+            
+            // 显示模态框
+            document.getElementById('updateModal').style.display = 'block';
+        }
+    </script>
+</body>
+</html> 
