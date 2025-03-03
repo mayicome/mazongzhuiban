@@ -19,6 +19,7 @@ import subprocess
 import shutil
 import tempfile
 import requests
+from packaging import version  # 需要安装 packaging 包
 
 # 在导入其他模块之前先打补丁
 import eventlet.support.greendns
@@ -587,8 +588,13 @@ def handle_update():
 @app.route('/get_version')
 def get_version():
     try:
-        with open('update.json', 'r', encoding='utf-8') as f:
+        # 使用绝对路径
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        update_path = os.path.join(current_dir, 'update.json')
+        
+        with open(update_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
+            logger.info(f"当前版本: {data['version']}")
             return jsonify({
                 'current_version': data['version'],
                 'require_restart': data.get('require_restart', False)
@@ -596,6 +602,16 @@ def get_version():
     except Exception as e:
         logger.error(f"获取版本失败: {str(e)}")
         return jsonify({'current_version': '未知', 'require_restart': False})
+
+@app.route('/clear_cache')
+def clear_cache():
+    try:
+        # 清除 requests 缓存
+        from requests_cache import clear
+        clear()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
 
 def start_web_server():
     host = '127.0.0.1'
