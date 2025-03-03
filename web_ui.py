@@ -568,7 +568,7 @@ def handle_update():
                 os.makedirs(os.path.dirname(dest_path), exist_ok=True)
                 
                 # 跳过配置文件
-                if 'config' in dst and 'config.ini' in dst:
+                if rel_path == 'config.ini' and os.path.exists(dest_path):
                     continue
                     
                 shutil.copy2(src_path, dest_path)
