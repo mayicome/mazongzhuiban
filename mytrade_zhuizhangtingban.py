@@ -90,9 +90,82 @@ def interact():
     import code
     code.InteractiveConsole(locals=globals()).interact()
 
+def symbol2stock(symbol):
+    """
+    将股票代码转换为QMT识别的格式
+    Args:
+        symbol (str): 原始股票代码（例如：000001、600001等）
+    Returns:
+        str: QMT格式的股票代码（例如：000001.SZ、600001.SH等）
+    """
+    symbol = symbol.strip()
+    
+    if '.SZ' in symbol or '.SH' in symbol or '.BJ' in symbol:
+        return symbol
+        
+    symbol = symbol.zfill(6)
+    
+    if symbol.startswith(('0', '3')):
+        return f"{symbol}.SZ"  # 深交所
+    elif symbol.startswith('6'):
+        return f"{symbol}.SH"  # 上交所
+    elif symbol.startswith(('4', '8')):
+        return f"{symbol}.BJ"  # 北交所
+    else:
+        raise ValueError(f"无效的股票代码: {symbol}")
+    
+
 #获取某支股票的历史数据
 def get_stock_hist(symbol, startdate, enddate, adjust, max_retries=3):
     """获取某支股票的历史数据,添加重试机制"""
+    global g_seq
+    stock = symbol2stock(symbol)
+
+    period = "1d"
+
+    # 获取历史行情数据
+    code_list = [stock]  # 定义要下载和订阅的股票代码列表
+    count = -1  # 设置count参数，使gmd_ex返回全部数据
+
+    # 下载历史数据
+    xtdata.download_history_data(stock, period, startdate, enddate)
+    
+    # 获取历史行情数据
+    df = xtdata.get_market_data_ex([], code_list, period=period, 
+                                start_time=startdate, 
+                                end_time=enddate, 
+                                count=count)            
+    
+    if stock in df and len(df[stock]) > 0:
+        data = pd.DataFrame(df[stock])
+        data['股票代码'] = symbol        
+        data['日期'] = pd.to_datetime(data.index)
+        data = data.reset_index(drop=True)
+        
+        # 重命名列
+        data = data.rename(columns={
+            'close': '收盘',
+            'high': '最高',
+            'open': '开盘',
+            'low': '最低'
+        })
+        
+        # 计算涨跌幅 (避免使用inplace)
+        data['涨跌幅'] = (data['收盘'] / data['收盘'].shift(1) - 1) * 100
+        # 替换 fillna(inplace=True) 的写法
+        data['涨跌幅'] = data['涨跌幅'].fillna(0)
+        data['涨跌幅'] = data['涨跌幅'].round(2)
+        
+        # 计算涨跌额
+        data['涨跌额'] = (data['收盘'] - data['收盘'].shift(1)).round(2)
+        data['涨跌额'] = data['涨跌额'].fillna(0)
+        return data
+    else:
+        logger.error(f"获取股票{symbol}历史数据失败")
+        return None
+
+    #----------------------------------------------------------------
+
     df = pd.DataFrame()
     retry_count = 0
     while retry_count < max_retries:
@@ -376,9 +449,7 @@ def subscribe_whole_quote_call_back(data):
     global A_bought_list
     global STOCK_NUMBERS_BOUGHT_IN_TODAY
     
-    #start_time = time.time()
     for stock in data:
-        #print(f"stock: {stock}")
         first_time = False
         seq =  0
         symbol = stock.split('.')[0]  #例如：stock: 601665.SH symbol: 601665            
@@ -418,7 +489,6 @@ def subscribe_whole_quote_call_back(data):
                 hist_df = g_stocks_hist_df[g_stocks_hist_df['股票代码'] == symbol]        
                 if hist_df.empty:
                     result = "未获取到历史数据"
-                    print(f"股票{symbol}未获取到历史数据")
                 else:
                     # 将hist_df转换为字典格式（只取第一行）
                     hist_dict = hist_df.iloc[0].to_dict()
@@ -592,8 +662,6 @@ def subscribe_whole_quote_call_back(data):
                         board_type = "热门行业"                                
                         selected_stock_info = my_market.industry_df.loc[my_market.industry_df['代码'] == symbol].copy()
                         if len(selected_stock_info) > 1:
-                            print(f"selected_stock_info: {selected_stock_info}")
-
                             selected_stock_info = selected_stock_info.iloc[[0]].copy()
                     if my_market.concept_df is not None and not my_market.concept_df.empty and symbol in my_market.concept_df['代码'].values:
                         if board_type == "":
@@ -724,7 +792,7 @@ def get_stock_hist_thread():
                     last_df['最高价观察期内最高价到今天的交易日天数'] = len(recent_df) - max_index + 1
                     last_df['最高价观察期内最高价'] = round(hist_high, 2)
                     #检查近期的趋势
-                    recent_df = hist_df.tail(my_market.NDAYS_BEFORE_2)
+                    recent_df = recent_df.tail(my_market.NDAYS_BEFORE_2)
                     pattern, r2, coeff = check_price_trend(recent_df)
                     #pattern =='linear':"线性趋势（斜率：{coeff:.4f}，R²：{r2:.4f}）"
                     #pattern == 'U': "U型趋势（二次项系数：{coeff:.4f}，R²：{r2:.4f}）"
@@ -746,9 +814,13 @@ def get_stock_hist_thread():
                     last_df['最大涨幅观察期内最大涨幅'] = max_price
                     #将last_df添加到g_stocks_hist_df中
                     g_stocks_hist_df = pd.concat([g_stocks_hist_df, last_df], axis=0, ignore_index=True)
+                    #东方财经
                     #股票代码	开盘	收盘	最高	最低	成交量	成交额	   振幅	   涨跌幅	涨跌额	换手率	涨幅阈值	历史涨幅阈值	布林中轨	       布林上轨	            布林下轨	        5日均线	 涨停板观察天数 涨停板观察期内最近涨停板天数	最高价观察天数	最高价观察期内最近最高价天数	最高价观察期内最近最高价	趋势观察天数	趋势观察期内趋势模式	趋势观察期内趋势R²	    趋势观察期内趋势系数	  最大涨幅观察天数	最大涨幅观察期内最大涨幅距今天数	最大涨幅观察期内最大涨幅
                     #601665	   5.55	   5.78	   5.85	   5.54	  585887 336901070	5.63	4.9	    0.27	1.21	8.5	      4.5	         5.386500000000001	5.667346464891595	5.105653535108407	5.5075	60           -1	                          40	         39	                           5.85	                     30	            U	                  0.36646530505190134	6.008660416334252e-05	10	             9	                              4.9
                     #logger.info(f"获取{symbol}的历史数据成功，已添加到{g_stocks_hist_df}中")
+                    #国金miniQMT
+                    #open   high    low  close  volume        amount  settelementPrice  openInterest  preClose  suspendFlag                            日期
+                    #0   39.87  40.78  39.15  39.56  579589  2.320677e+09               0.0            15     39.15            0 1970-01-01 00:00:00.020241108 
                 else:
                     logger.warning(f"获取{symbol}的历史数据时出错，继续加入等待获取队列")
                     g_get_hist_queue.put(symbol)
@@ -1138,6 +1210,8 @@ if __name__ == '__main__':
     global g_trades
     global g_positions
     global g_watch_list
+    global g_seq    
+    g_seq = 0
     g_watch_list = []
     A_bought_list = []
     STOCK_NUMBERS_BOUGHT_IN_TODAY = 0
