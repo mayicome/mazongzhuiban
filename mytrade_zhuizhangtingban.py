@@ -239,37 +239,45 @@ def is_limit_up(symbol, price):
 
 def check_price_trend(recent_df):
     """检查价格趋势，根据拟合度选择合适的模型"""
+    # 添加数据有效性检查
+    if len(recent_df) < 2 or recent_df['收盘'].nunique() == 1:
+        return 'N', 0.0, 0.0
+    
     x = np.arange(len(recent_df))
     y = recent_df['收盘'].values
     
-    # 线性拟合（一次多项式）
-    linear_coeffs = np.polyfit(x, y, 1)
-    linear_fit = np.poly1d(linear_coeffs)
-    
-    # 计算线性拟合的 R²
-    y_linear = linear_fit(x)
-    r2_linear = 1 - np.sum((y - y_linear) ** 2) / np.sum((y - np.mean(y)) ** 2)
-    
-    # 如果线性拟合度不够好（比如R²小于0.8），尝试二次多项式拟合
-    if r2_linear < 0.8:
-        # 二次多项式拟合
-        quad_coeffs = np.polyfit(x, y, 2)
-        quad_fit = np.poly1d(quad_coeffs)
+    try:
+        # 线性拟合（一次多项式）
+        linear_coeffs = np.polyfit(x, y, 1)
+        linear_fit = np.poly1d(linear_coeffs)
         
-        # 计算二次拟合的 R²
-        y_quad = quad_fit(x)
-        r2_quad = 1 - np.sum((y - y_quad) ** 2) / np.sum((y - np.mean(y)) ** 2)
+        # 计算线性拟合的 R²
+        y_linear = linear_fit(x)
+        r2_linear = 1 - np.sum((y - y_linear) ** 2) / np.sum((y - np.mean(y)) ** 2)
         
-        # 返回二次拟合结果
-        a, b, c = quad_coeffs
-        if a > 0:
-            return 'U', round(r2_quad, 2), round(a, 2)
+        # 如果线性拟合度不够好（比如R²小于0.8），尝试二次多项式拟合
+        if r2_linear < 0.8 and len(recent_df) >= 3:
+            # 二次多项式拟合
+            quad_coeffs = np.polyfit(x, y, 2)
+            quad_fit = np.poly1d(quad_coeffs)
+            
+            # 计算二次拟合的 R²
+            y_quad = quad_fit(x)
+            r2_quad = 1 - np.sum((y - y_quad) ** 2) / np.sum((y - np.mean(y)) ** 2)
+            
+            # 返回二次拟合结果
+            a, b, c = quad_coeffs
+            if a > 0:
+                return 'U', round(r2_quad, 2), round(a, 2)
+            else:
+                return 'N', round(r2_quad, 2), round(a, 2)
         else:
-            return 'N', round(r2_quad, 2), round(a, 2)
-    else:
-        # 返回线性拟合结果
-        slope = linear_coeffs[0]
-        return 'L', round(r2_linear, 2), round(slope, 2)
+            # 返回线性拟合结果
+            slope = linear_coeffs[0]
+            return 'L', round(r2_linear, 2), round(slope, 2)
+    except np.linalg.LinAlgError:
+        logger.warning("多项式拟合失败，返回默认值")
+        return 'N', 0.0, 0.0
 
 # 往前查找首个线下阳线
 def underline_bullish(df):
