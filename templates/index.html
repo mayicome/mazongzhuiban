@@ -261,90 +261,90 @@
                 <!-- Account 配置 -->
                 <h5 class="config-section-title">账户配置</h5>
                 <div class="config-row">
-                    <label class="config-label">QMT路径:</label>
+                    <label class="config-label" for="PATH_QMT">QMT路径:</label>
                     <div class="input-group">
                         <input type="text" class="form-control config-input" id="PATH_QMT" value="{{ path_qmt }}" readonly>
                         <button class="btn btn-outline-secondary" type="button" onclick="selectQmtPath()">选择路径</button>
                     </div>
                 </div>
                 <div class="config-row">
-                    <label class="config-label">账户ID:</label>
+                    <label class="config-label" for="ACCOUNT_ID">账户ID:</label>
                     <input type="text" class="form-control config-input" id="ACCOUNT_ID" value="{{ account_id }}">
                 </div>
 
                 <!-- Trading 配置 -->
                 <h5 class="config-section-title">热门板块数量配置</h5>
                 <div class="config-row">
-                    <label class="config-label">热门板块数量:</label>
+                    <label class="config-label" for="TOP_N_BOARDS">热门板块数量:</label>
                     <input type="number" class="form-control config-input" id="TOP_N_BOARDS" value="{{ top_n_boards }}">
                 </div>
                 <div class="config-row">
-                    <label class="config-label">热门股票数量:</label>
+                    <label class="config-label" for="TOP_N_STOCKS">热门股票数量:</label>
                     <input type="number" class="form-control config-input" id="TOP_N_STOCKS" value="{{ top_n_stocks }}">
                 </div>
                 <div class="config-row">
-                    <label class="config-label">获取热门板块间隔(秒):</label>
+                    <label class="config-label" for="INTERVAL_GET_HOT_BOARDS">获取热门板块间隔(秒):</label>
                     <input type="number" class="form-control config-input" id="INTERVAL_GET_HOT_BOARDS" value="{{ interval_get_hot_boards }}">
                 </div>
 
                 <!-- MA 配置 -->
                 <h5 class="config-section-title">均线配置</h5>
                 <div class="config-row">
-                    <label class="config-label">布林带天数:</label>
+                    <label class="config-label" for="BOLL_DAYS">布林带天数:</label>
                     <input type="number" class="form-control config-input" id="BOLL_DAYS" value="{{ boll_days }}">
                 </div>
                 <div class="config-row">
-                    <label class="config-label">布林带倍数:</label>
+                    <label class="config-label" for="BOLL_MULTIPLES">布林带倍数:</label>
                     <input type="number" class="form-control config-input" id="BOLL_MULTIPLES" value="{{ boll_multiples }}">
                 </div>
                 <div class="config-row">
-                    <label class="config-label">5日均线:</label>
+                    <label class="config-label" for="MA_5">5日均线:</label>
                     <input type="number" class="form-control config-input" id="MA_5" value="{{ ma_5 }}">
                 </div>
 
                 <!-- Threshold 配置 -->
                 <h5 class="config-section-title">阈值配置</h5>
                 <div class="config-row">
-                    <label class="config-label">当前涨幅阈值(涨停板10%):</label>
+                    <label class="config-label" for="THRESHOLD_CUR_UPDOWNRATE_10PCT">当前涨幅阈值(涨停板10%):</label>
                     <input type="number" step="0.1" class="form-control config-input" id="THRESHOLD_CUR_UPDOWNRATE_10PCT" value="{{ threshold_cur_10pct }}">
                 </div>
                 <div class="config-row">
-                    <label class="config-label">历史涨幅阈值(涨停板10%):</label>
+                    <label class="config-label" for="THRESHOLD_HIST_UPDOWNRATE_10PCT">历史涨幅阈值(涨停板10%):</label>
                     <input type="number" step="0.1" class="form-control config-input" id="THRESHOLD_HIST_UPDOWNRATE_10PCT" value="{{ threshold_hist_10pct }}">
                 </div>
                 <div class="config-row">
-                    <label class="config-label">当前涨幅阈值(涨停板20%):</label>
+                    <label class="config-label" for="THRESHOLD_CUR_UPDOWNRATE_20PCT">当前涨幅阈值(涨停板20%):</label>
                     <input type="number" step="0.1" class="form-control config-input" id="THRESHOLD_CUR_UPDOWNRATE_20PCT" value="{{ threshold_cur_20pct }}">
                 </div>
                 <div class="config-row">
-                    <label class="config-label">历史涨幅阈值(涨停板20%):</label>
+                    <label class="config-label" for="THRESHOLD_HIST_UPDOWNRATE_20PCT">历史涨幅阈值(涨停板20%):</label>
                     <input type="number" step="0.1" class="form-control config-input" id="THRESHOLD_HIST_UPDOWNRATE_20PCT" value="{{ threshold_hist_20pct }}">
                 </div>
                 <div class="config-row">
-                    <label class="config-label">当前涨幅阈值(涨停板30%):</label>
+                    <label class="config-label" for="THRESHOLD_CUR_UPDOWNRATE_30PCT">当前涨幅阈值(涨停板30%):</label>
                     <input type="number" step="0.1" class="form-control config-input" id="THRESHOLD_CUR_UPDOWNRATE_30PCT" value="{{ threshold_cur_30pct }}">
                 </div>
                 <div class="config-row">
-                    <label class="config-label">历史涨幅阈值(涨停板30%):</label>
+                    <label class="config-label" for="THRESHOLD_HIST_UPDOWNRATE_30PCT">历史涨幅阈值(涨停板30%):</label>
                     <input type="number" step="0.1" class="form-control config-input" id="THRESHOLD_HIST_UPDOWNRATE_30PCT" value="{{ threshold_hist_30pct }}">
                 </div>
 
                 <!-- Days 配置 -->
                 <h5 class="config-section-title">历史天数配置</h5>
                 <div class="config-row">
-                    <label class="config-label">最大涨幅观察交易日天数:</label>
+                    <label class="config-label" for="NDAYS_BEFORE_1">最大涨幅观察交易日天数:</label>
                     <input type="number" class="form-control config-input" id="NDAYS_BEFORE_1" value="{{ ndays_before_1 }}">
                 </div>
                 <div class="config-row">
-                    <label class="config-label">趋势观察交易日天数:</label>
+                    <label class="config-label" for="NDAYS_BEFORE_2">趋势观察交易日天数:</label>
                     <input type="number" class="form-control config-input" id="NDAYS_BEFORE_2" value="{{ ndays_before_2 }}">
                 </div>
                 <div class="config-row">
-                    <label class="config-label">最高价观察交易日天数:</label>
+                    <label class="config-label" for="NDAYS_BEFORE_3">最高价观察交易日天数:</label>
                     <input type="number" class="form-control config-input" id="NDAYS_BEFORE_3" value="{{ ndays_before_3 }}">
                 </div>
                 <div class="config-row">
-                    <label class="config-label">涨停板观察交易日天数:</label>
+                    <label class="config-label" for="NDAYS_BEFORE_4">涨停板观察交易日天数:</label>
                     <input type="number" class="form-control config-input" id="NDAYS_BEFORE_4" value="{{ ndays_before_4 }}">
                 </div>
 
