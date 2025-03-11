@@ -19,8 +19,8 @@ import json
 
 xtdata.enable_hello = False  # 添加此行以隐藏欢迎消息
 
+# 检查程序是否有更新
 def check_update():
-    """检查更新核心逻辑"""
     try:
         # 读取本地版本（从update.json）
         with open('update.json', 'r', encoding='utf-8') as f:
@@ -39,7 +39,7 @@ def check_update():
         return False, "", ""
 
 # 读取今日已买入股票列表
-def read_bought_list():
+def read_bought_list_from_file():
     try:
         # 获取今天的日期作为文件名
         today = datetime.now().strftime('%Y%m%d')
@@ -59,31 +59,23 @@ def read_bought_list():
                         logger.error(f"解析买入记录时出错: {e}, 记录内容: {line.strip()}")
                         continue
                         
-            logger.info(f"已从文件 {filename} 读取今日已买列表，列表长度为: {len(A_bought_list)}")            
-
-            for bought_info in A_bought_list[:]: # 使用切片创建副本进行遍历
-                if isinstance(bought_info, dict) and bought_info.get('seq') == 1282359616:                
-                    A_bought_list.remove(bought_info)
-                    logger.info(f"已从A_bought_list中删除委托失败的订单记录: {bought_info}")
-                    
-                    # 更新bought_list文件
-                    try:
-                        today = datetime.now().strftime('%Y%m%d')
-                        data_dir = os.path.join(os.path.dirname(__file__), 'data')
-                        filename = os.path.join(data_dir, f'bought_list_{today}.txt')
-                        with open(filename, 'w', encoding='utf-8') as f:
-                            for info in A_bought_list:
-                                if isinstance(info, dict):
-                                    # 使用repr确保字典格式正确写入
-                                    f.write(f'{repr(info)}\n')
-                        logger.info(f"已更新bought_list文件 {filename}")
-                    except Exception as e:
-                        logger.error(f"更新bought_list文件时出错: {e}")
-                    break
+            logger.info(f"已从文件 {filename} 读取今日已买列表，列表长度为: {len(A_bought_list)}")
         else:
             logger.info(f"未读取到今日已买列表")
     except Exception as e:
         logger.error(f"读取买入列表文件时出错: {e}")
+
+def write_bought_list_to_file():
+    try:
+        today = datetime.now().strftime('%Y%m%d')
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        filename = os.path.join(data_dir, f'bought_list_{today}.txt')
+        with open(filename, 'w', encoding='utf-8') as f:
+            for bought_info in A_bought_list:
+                if isinstance(bought_info, dict):
+                    f.write(f'{repr(bought_info)}\n')
+    except Exception as e: 
+        logger.error(f"写入买入列表文件时出错: {e}")
 
 def interact():
     """执行后进入repl模式"""
@@ -114,10 +106,8 @@ def symbol2stock(symbol):
     else:
         raise ValueError(f"无效的股票代码: {symbol}")
     
-
 #获取某支股票的历史数据
 def get_stock_hist(symbol, startdate, enddate, adjust, max_retries=3):
-    """获取某支股票的历史数据,添加重试机制"""
     global g_seq
     stock = symbol2stock(symbol)
 
@@ -165,7 +155,7 @@ def get_stock_hist(symbol, startdate, enddate, adjust, max_retries=3):
         return None
 
     #----------------------------------------------------------------
-
+    # 原来用akshare的东方财富接口获取股票历史数据
     df = pd.DataFrame()
     retry_count = 0
     while retry_count < max_retries:
@@ -237,9 +227,9 @@ def is_limit_up(symbol, price):
         return True
     return False
 
+# 检查价格趋势
 def check_price_trend(recent_df):
-    """检查价格趋势，根据拟合度选择合适的模型"""
-    # 添加数据有效性检查
+    # 数据有效性检查
     if len(recent_df) < 2 or recent_df['收盘'].nunique() == 1:
         return 'N', 0.0, 0.0
     
@@ -324,7 +314,6 @@ def volume_increase_rate(v1, v2):
 
 #获取某支股票的龙虎榜数据
 def get_lhb_data(stock_code):
-    """获取龙虎榜数据"""
     try:
         count = 0
         # 获取当前日期
@@ -370,9 +359,8 @@ def get_lhb_data(stock_code):
         logger.error(f"获取龙虎榜数据时出错：{e}")
         return f"获取龙虎榜数据时出错：{e}", 0
     
+# 撤单
 def my_cancel_order_stock(acc, seq):
-    """撤单"""
-    toast_message = None
     try:
         result = xt_trader.cancel_order_stock(acc, seq)
         if result == 0: #成功            
@@ -381,7 +369,7 @@ def my_cancel_order_stock(acc, seq):
                     if bought_info.get('seq') == seq:
                         logger.info(f"股票{bought_info.get('stock')}订单号{seq}的定时撤单任务已执行。")
             except Exception as e:
-                logger.error(f"撤单时处理bought_list文件时出错: {e}")
+                logger.error(f"撤单时处理A_bought_list文件时出错: {e}")
             try:
                 # 更新selected_df中委托失败订单的下单状态
                 if my_market.selected_df is not None and not my_market.selected_df.empty:
@@ -395,8 +383,8 @@ def my_cancel_order_stock(acc, seq):
     except Exception as e:
         logger.error(f"撤单失败,订单号:{seq},错误信息:{e}")
 
+# 发送微信通知给所有配置的用户
 def send_wechat_notification(title, message):
-    """发送微信通知给所有配置的用户"""
     if not my_market.server_chan_keys:
         logger.warning("未配置Server酱密钥，无法发送微信通知")
         return
@@ -458,6 +446,7 @@ def subscribe_whole_quote_call_back(data):
     global STOCK_NUMBERS_BOUGHT_IN_TODAY
     
     for stock in data:
+        print(f"stock: {stock}")
         first_time = False
         seq =  0
         symbol = stock.split('.')[0]  #例如：stock: 601665.SH symbol: 601665            
@@ -485,147 +474,32 @@ def subscribe_whole_quote_call_back(data):
         if updownrate >= my_market.THRESHOLD_CUR_UPDOWNRATE_10PCT:
             if symbol not in g_watch_list:
                 g_watch_list.append(symbol)
+            
+        order_status = "未下单"
+        # 检查当前时间是否大于等于9:30
+        now = datetime.now()        
+        current_time = now.strftime("%H:%M:%S")
+        if current_time < "09:30:00":
+            continue
         
-        # 修改这里：使用更安全的方式获取历史数据
-        if True:
-            selected = False
-            order_status = "未下单"
-            # 检查当前时间是否大于等于9:30
-            current_time = datetime.now().strftime("%H:%M:%S")
-            result = ""
-            if current_time >= "09:30:00":
-                hist_df = g_stocks_hist_df[g_stocks_hist_df['股票代码'] == symbol]        
-                if hist_df.empty:
-                    result = "未获取到历史数据"
-                else:
-                    # 将hist_df转换为字典格式（只取第一行）
-                    hist_dict = hist_df.iloc[0].to_dict()
-                    selected, result = conditions.check_stock_conditions(updownrate, last_price, hist_dict)
-            now = datetime.now()
-            if selected:                    
-                # 下单买入
-                try:
-                    #检查stock是否在A_selected_list中
-                    if symbol not in A_selected_list:
-                        A_selected_list.append(symbol)
-                        first_time = True
-                    
-                    # 更新行业板块数据
-                    try:
-                        if my_market.industry_df is not None and not my_market.industry_df.empty:
-                            mask = my_market.industry_df['代码'] == symbol
-                            if mask.any():
-                                try:
-                                    my_market.industry_df.loc[mask, '分析结果'] = result
-                                    logger.debug(f"Updated industry analysis result for {symbol}")
-                                except Exception as e:
-                                    logger.error(f"Error updating industry analysis result for {symbol}: {e}")
-                    except Exception as e:
-                        logger.error(f"Error processing industry data for {symbol}: {e}")
-                        
-                    # 更新概念板块数据
-                    try:
-                        if my_market.concept_df is not None and not my_market.concept_df.empty:
-                            mask = my_market.concept_df['代码'] == symbol
-                            if mask.any():
-                                try:
-                                    my_market.concept_df.loc[mask, '分析结果'] = result
-                                    logger.debug(f"Updated concept analysis result for {symbol}")
-                                except Exception as e:
-                                    logger.error(f"Error updating concept analysis result for {symbol}: {e}")
-                    except Exception as e:
-                        logger.error(f"Error processing concept data for {symbol}: {e}")
-
-                    if any(stock == bought_info['stock'] for bought_info in A_bought_list):
-                        order_status = "已下过单且未被撤销"
-                    elif STOCK_NUMBERS_BOUGHT_IN_TODAY >= my_market.MAX_STOCKS_PER_DAY:
-                        logger.info(f"{now} 今天已买入成交股票支数{STOCK_NUMBERS_BOUGHT_IN_TODAY}达到最大买入股票支数限制{my_market.MAX_STOCKS_PER_DAY}，未买入 {stock}")
-                        order_status = "今天已买入成交股票支数已达最大买入股票支数限制，未买入"
-                    else:
-                        # 计算可买数量,按100股为单位
-                        max_cash = min(my_market.SINGLE_BUY_AMOUNT, my_market.asset.cash)
-                        if max_cash < 5000:
-                            logger.info(f"{now} 可用资金不足5000元，{stock}未下单")
-                            order_status = "可用资金不足5000元，未下单"
-                        else:
-                            # 计算涨停板价格
-                            
-                            if stock.startswith('83'):
-                                # 北交所涨跌幅限制为30%
-                                limit_up_price = round(last_close * 1.3, 2)
-                            elif stock.startswith('688') or stock.startswith('30'):
-                                # 科创板和创业板涨跌幅限制为20%
-                                limit_up_price = round(last_close * 1.2, 2)
-                            elif stock.startswith('00') or stock.startswith('60'):
-                                # 其他板块涨跌幅限制为10%
-                                limit_up_price = round(last_close * 1.1, 2)
-                            else:
-                                logger.info(f"{now} 股票代码{stock}不属于沪深A股，未下单")
-                                order_status = "股票代码不属于沪深A股，未下单"
-                            #计算可以买多少股
-                            max_buy_amount = int(max_cash / limit_up_price)
-                            buy_amount = max_buy_amount // 100 * 100
-                            if buy_amount >= 100:                                        
-                                try:
-                                    seq = xt_trader.order_stock(
-                                        acc, 
-                                        stock, 
-                                        xtconstant.STOCK_BUY, 
-                                        buy_amount, 
-                                        xtconstant.LATEST_PRICE, 
-                                        -1,
-                                        STRATEGY_NAME, 
-                                        stock
-                                    )
-                                    
-                                    if seq < 0:
-                                        logger.error(f"下单买入{stock}失败，错误码: {seq}")
-                                        order_status = f"下单失败，错误码: {seq}"
-                                    else:
-                                        order_status = f"已下单买入{buy_amount}股,价格{last_price}"
-                                        logger.info(f"{now} 已下单买入 {stock} {buy_amount}股,价格{last_price}, seq={seq}")
-                                        logger.info(f"stock: {stock}; A_bought_list: {A_bought_list}")
-                                        # 将股票代码、时间、买入数量、价格、订单号一起记录
-                                        A_bought_list.append({
-                                            'stock': stock,
-                                            'time': now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
-                                            'amount': buy_amount, 
-                                            'price': last_price,
-                                            'seq': seq
-                                        })                                        
-                                        # 将已买入股票列表写入以当日日期命名的文件
-                                        try:
-                                            today = datetime.now().strftime('%Y%m%d')
-                                            # 构建文件路径
-                                            data_dir = os.path.join(os.path.dirname(__file__), 'data')
-                                            os.makedirs(data_dir, exist_ok=True)
-                                            filename = os.path.join(data_dir, f'bought_list_{today}.txt')
-                                            with open(filename, 'w', encoding='utf-8') as f:
-                                                for bought_info in A_bought_list:
-                                                    if isinstance(bought_info, dict):
-                                                        # 使用repr确保字典格式正确写入
-                                                        f.write(f'{repr(bought_info)}\n')
-                                        except Exception as e:
-                                            logger.error(f"写入买入列表文件{filename}时出错: {e}")
-                                        # 创建定时撤单任务
-                                        try:
-                                            if my_market.CANCEL_ORDER_SECONDS > 0:
-                                                # 使用threading.Timer创建定时任务,指定秒数后执行撤单
-                                                timer = threading.Timer(my_market.CANCEL_ORDER_SECONDS, my_cancel_order_stock, args=(acc, seq))
-                                                timer.start()
-                                                logger.info(f"已创建买入{stock}的定时撤单任务,订单号:{seq},将在{my_market.CANCEL_ORDER_SECONDS}秒后执行")
-                                                order_status += f",将在{my_market.CANCEL_ORDER_SECONDS}秒后撤单"
-                                        except Exception as e:
-                                            logger.error(f"订单号{seq}创建定时撤单任务时出错: {e}")
-                                except Exception as e:
-                                    logger.error(f"执行下单操作时出错: {e}")
-                                    order_status = f"下单失败，错误码: {e}"
-                            else:
-                                logger.info(f"可用资金不够买入100股，{stock}未下单")
-                                order_status = f"可用资金不够买入100股，未下单"
-                except Exception as e:
-                    logger.error(f"买入股票 {stock} 时出错: {e}")
-                    order_status = f"买入出错: {e}"
+        selected = False
+        result = ""
+        
+        hist_df = g_stocks_hist_df[g_stocks_hist_df['股票代码'] == symbol]        
+        if hist_df.empty:
+            result = "未获取到历史数据"
+        else:
+            # 将hist_df转换为字典格式（只取第一行）
+            hist_dict = hist_df.iloc[0].to_dict()
+            selected, result = conditions.check_stock_conditions(updownrate, last_price, hist_dict)
+        
+        if selected:                    
+            # 下单买入
+        
+            #检查stock是否在A_selected_list中
+            if symbol not in A_selected_list:
+                A_selected_list.append(symbol)
+                first_time = True
             
             # 更新行业板块数据
             try:
@@ -633,92 +507,197 @@ def subscribe_whole_quote_call_back(data):
                     mask = my_market.industry_df['代码'] == symbol
                     if mask.any():
                         try:
-                            if '分析结果' not in my_market.industry_df.columns:
-                                my_market.industry_df['分析结果'] = ""
                             my_market.industry_df.loc[mask, '分析结果'] = result
                             logger.debug(f"Updated industry analysis result for {symbol}")
                         except Exception as e:
                             logger.error(f"Error updating industry analysis result for {symbol}: {e}")
             except Exception as e:
                 logger.error(f"Error processing industry data for {symbol}: {e}")
-                        
+                
             # 更新概念板块数据
             try:
                 if my_market.concept_df is not None and not my_market.concept_df.empty:
                     mask = my_market.concept_df['代码'] == symbol
                     if mask.any():
                         try:
-                            if '分析结果' not in my_market.concept_df.columns:
-                                my_market.concept_df['分析结果'] = ""
                             my_market.concept_df.loc[mask, '分析结果'] = result
                             logger.debug(f"Updated concept analysis result for {symbol}")
                         except Exception as e:
                             logger.error(f"Error updating concept analysis result for {symbol}: {e}")
             except Exception as e:
                 logger.error(f"Error processing concept data for {symbol}: {e}")
-                                
-            if selected:
-                if my_market.selected_df is not None and not my_market.selected_df.empty and symbol in my_market.selected_df['代码'].values:
-                    # 更新已选股票的下单状态
-                    my_market.selected_df.loc[my_market.selected_df['代码'] == symbol, '下单状态'] = order_status
-                    my_market.selected_df.loc[my_market.selected_df['代码'] == symbol, 'seq'] = seq
 
-                else:                        
-                    # 创建新的 DataFrame
-                    board_type = ""
-                    if my_market.industry_df is not None and not my_market.industry_df.empty and symbol in my_market.industry_df['代码'].values:
-                        board_type = "热门行业"                                
-                        selected_stock_info = my_market.industry_df.loc[my_market.industry_df['代码'] == symbol].copy()
+            if any(stock == bought_info['stock'] for bought_info in A_bought_list):
+                order_status = "已下过单且未被撤销"
+            elif STOCK_NUMBERS_BOUGHT_IN_TODAY >= my_market.MAX_STOCKS_PER_DAY:
+                logger.info(f"今天已买入成交股票支数{STOCK_NUMBERS_BOUGHT_IN_TODAY}达到最大买入股票支数限制{my_market.MAX_STOCKS_PER_DAY}，未买入 {stock}")
+                order_status = "今天已买入成交股票支数已达最大买入股票支数限制，未买入"
+            else:
+                # 计算可买数量,按100股为单位
+                max_cash = min(my_market.SINGLE_BUY_AMOUNT, my_market.asset.cash)
+                if max_cash < 5000:
+                    logger.info(f"{now} 可用资金不足5000元，{stock}未下单")
+                    order_status = "可用资金不足5000元，未下单"
+                else:
+                    # 计算涨停板价格                    
+                    if stock.startswith('83'):
+                        # 北交所涨跌幅限制为30%
+                        limit_up_price = round(last_close * 1.3, 2)
+                    elif stock.startswith('688') or stock.startswith('30'):
+                        # 科创板和创业板涨跌幅限制为20%
+                        limit_up_price = round(last_close * 1.2, 2)
+                    elif stock.startswith('00') or stock.startswith('60'):
+                        # 其他板块涨跌幅限制为10%
+                        limit_up_price = round(last_close * 1.1, 2)
+                    else:
+                        logger.info(f"股票代码{stock}不属于沪深A股，未下单")
+                        order_status = "股票代码不属于沪深A股，未下单"
+                    #计算可以买多少股
+                    max_buy_amount = int(max_cash / limit_up_price)
+                    buy_amount = max_buy_amount // 100 * 100
+                    if buy_amount >= 100:                                        
+                        try:
+                            seq = xt_trader.order_stock(
+                                acc, 
+                                stock, 
+                                xtconstant.STOCK_BUY, 
+                                buy_amount, 
+                                xtconstant.LATEST_PRICE, 
+                                -1,
+                                STRATEGY_NAME, 
+                                stock
+                            )
+                            
+                            if seq < 0:
+                                logger.error(f"下单买入{stock}失败，账号：{acc}，股票代码：{stock}，数量：{buy_amount}，市价单，可用资金：{my_market.asset.cash}，错误码: {seq}")
+                                order_status = f"下单失败，错误码: {seq}"
+                            else:
+                                order_status = f"已下单买入{buy_amount}股,最新价{last_price},买入方式：市价单"
+                                logger.info(f"{now} 已下单买入 {stock} {buy_amount}股,最新价{last_price},买入方式：市价单, 可用资金：{my_market.asset.cash}, 订单号={seq}")
+                                # 将股票代码、时间、买入数量、价格、订单号一起记录
+                                A_bought_list.append({
+                                    'stock': stock,
+                                    'time': now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+                                    'amount': buy_amount, 
+                                    'price': last_price,
+                                    'seq': seq
+                                })                                        
+                                logger.info(f"stock: {stock}; A_bought_list: {A_bought_list}")                                
+                                # 将已买入股票列表写入以当日日期命名的文件
+                                write_bought_list_to_file()
+                                # 创建定时撤单任务
+                                try:
+                                    if my_market.CANCEL_ORDER_SECONDS > 0:
+                                        # 使用threading.Timer创建定时任务,指定秒数后执行撤单
+                                        timer = threading.Timer(my_market.CANCEL_ORDER_SECONDS, my_cancel_order_stock, args=(acc, seq))
+                                        timer.start()
+                                        logger.info(f"已创建买入{stock}的定时撤单任务,订单号:{seq},将在{my_market.CANCEL_ORDER_SECONDS}秒后执行")
+                                        order_status += f",将在{my_market.CANCEL_ORDER_SECONDS}秒后撤单"
+                                except Exception as e:
+                                    logger.error(f"订单号{seq}创建定时撤单任务时出错: {e}")
+                        except Exception as e:
+                            logger.error(f"执行下单操作时出错: {e}")
+                            order_status = f"下单失败，错误码: {e}"
+                    else:
+                        logger.info(f"可用资金不够买入100股，{stock}未下单")
+                        order_status = f"可用资金不够买入100股，未下单"
+            
+        # 更新行业板块数据
+        try:
+            if my_market.industry_df is not None and not my_market.industry_df.empty:
+                mask = my_market.industry_df['代码'] == symbol
+                if mask.any():
+                    try:
+                        if '分析结果' not in my_market.industry_df.columns:
+                            my_market.industry_df['分析结果'] = ""
+                        my_market.industry_df.loc[mask, '分析结果'] = result
+                        my_market.industry_df.loc[mask, '最新价'] = last_price
+                        my_market.industry_df.loc[mask, '涨跌幅'] = updownrate
+                        logger.debug(f"Updated industry analysis result for {symbol}")
+                    except Exception as e:
+                        logger.error(f"Error updating industry analysis result for {symbol}: {e}")
+                my_market.update_market_data(industry_df=my_market.industry_df)
+        except Exception as e:
+            logger.error(f"Error processing industry data for {symbol}: {e}")
+                    
+        # 更新概念板块数据
+        try:
+            if my_market.concept_df is not None and not my_market.concept_df.empty:
+                mask = my_market.concept_df['代码'] == symbol
+                if mask.any():
+                    try:
+                        if '分析结果' not in my_market.concept_df.columns:
+                            my_market.concept_df['分析结果'] = ""
+                        my_market.concept_df.loc[mask, '分析结果'] = result
+                        my_market.concept_df.loc[mask, '最新价'] = last_price
+                        my_market.concept_df.loc[mask, '涨跌幅'] = updownrate
+                        logger.debug(f"Updated concept analysis result for {symbol}")
+                    except Exception as e:
+                        logger.error(f"Error updating concept analysis result for {symbol}: {e}")
+                my_market.update_market_data(concept_df=my_market.concept_df)
+        except Exception as e:
+            logger.error(f"Error processing concept data for {symbol}: {e}")
+                            
+        if selected:
+            if my_market.selected_df is not None and not my_market.selected_df.empty and symbol in my_market.selected_df['代码'].values:
+                # 更新已选股票的下单状态
+                my_market.selected_df.loc[my_market.selected_df['代码'] == symbol, '下单状态'] = order_status
+                my_market.selected_df.loc[my_market.selected_df['代码'] == symbol, 'seq'] = seq
+
+            else:                        
+                # 创建新的 DataFrame
+                board_type = ""
+                if my_market.industry_df is not None and not my_market.industry_df.empty and symbol in my_market.industry_df['代码'].values:
+                    board_type = "热门行业"                                
+                    selected_stock_info = my_market.industry_df.loc[my_market.industry_df['代码'] == symbol].copy()
+                    if len(selected_stock_info) > 1:
+                        selected_stock_info = selected_stock_info.iloc[[0]].copy()
+                if my_market.concept_df is not None and not my_market.concept_df.empty and symbol in my_market.concept_df['代码'].values:
+                    if board_type == "":
+                        board_type = "热门概念"
+
+                        selected_stock_info = my_market.concept_df.loc[my_market.concept_df['代码'] == symbol].copy()
                         if len(selected_stock_info) > 1:
                             selected_stock_info = selected_stock_info.iloc[[0]].copy()
-                    if my_market.concept_df is not None and not my_market.concept_df.empty and symbol in my_market.concept_df['代码'].values:
-                        if board_type == "":
-                            board_type = "热门概念"
+                    else:
+                        board_type = "热门行业&热门概念"
+                        selected_stock_info_2 = my_market.concept_df.loc[my_market.concept_df['代码'] == symbol].copy()
+                        if selected_stock_info['分析结果'].values == "":
+                            selected_stock_info['分析结果'] = selected_stock_info_2['分析结果'].copy()
+                if selected_stock_info is not None and not selected_stock_info.empty:
+                    # 添加上榜时间和板块类别
+                    selected_stock_info.loc[:, '上榜时间'] = now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                    selected_stock_info.loc[:, '板块类别'] = board_type
+                    selected_stock_info.loc[:, '下单状态'] = order_status
+                    selected_stock_info.loc[:, 'seq'] = seq
+                    lhb_message, count = get_lhb_data(symbol)
+                    selected_stock_info.loc[:, '龙虎榜天数'] = count
+                    # 重新排列列顺序
+                    cols = selected_stock_info.columns.tolist()
+                    # 移动板块类别到第一列
+                    cols.remove('板块类别')
+                    cols = ['板块类别'] + cols
+                    # 移动上榜时间到第六列
+                    cols.remove('上榜时间')
+                    cols.insert(5, '上榜时间')
+                    cols.remove('下单状态')
+                    cols.insert(6, '下单状态')
+                    selected_stock_info = selected_stock_info[cols]
+                    my_market.update_market_data(selected_df=selected_stock_info)
+                    
+                    #首次上榜发送微信通知
+                    if first_time:
+                        title = f"蚂蚁选股提醒：{symbol}{selected_stock_info.iloc[0]['名称']}上榜"
+                        message = f"{now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}最新价：{selected_stock_info.iloc[0]['最新价']}，涨跌幅：{selected_stock_info.iloc[0]['涨跌幅']}，分析结果：{selected_stock_info.iloc[0]['分析结果']}，龙虎榜天数：{selected_stock_info.iloc[0]['龙虎榜天数']}，{lhb_message}"
+                        send_wechat_notification(title, message)
+                else:                                
+                    logger.error(f"selected_stock_info:{selected_stock_info}为空，股票{symbol}未上榜")
 
-                            selected_stock_info = my_market.concept_df.loc[my_market.concept_df['代码'] == symbol].copy()
-                            if len(selected_stock_info) > 1:
-                                selected_stock_info = selected_stock_info.iloc[[0]].copy()
-                        else:
-                            board_type = "热门行业&热门概念"
-                            selected_stock_info_2 = my_market.concept_df.loc[my_market.concept_df['代码'] == symbol].copy()
-                            if selected_stock_info['分析结果'].values == "":
-                                selected_stock_info['分析结果'] = selected_stock_info_2['分析结果'].copy()
-                    if selected_stock_info is not None and not selected_stock_info.empty:
-                        # 添加上榜时间和板块类别
-                        selected_stock_info.loc[:, '上榜时间'] = now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-                        selected_stock_info.loc[:, '板块类别'] = board_type
-                        selected_stock_info.loc[:, '下单状态'] = order_status
-                        selected_stock_info.loc[:, 'seq'] = seq
-                        lhb_message, count = get_lhb_data(symbol)
-                        selected_stock_info.loc[:, '龙虎榜天数'] = count
-                        # 重新排列列顺序
-                        cols = selected_stock_info.columns.tolist()
-                        # 移动板块类别到第一列
-                        cols.remove('板块类别')
-                        cols = ['板块类别'] + cols
-                        # 移动上榜时间到第六列
-                        cols.remove('上榜时间')
-                        cols.insert(5, '上榜时间')
-                        cols.remove('下单状态')
-                        cols.insert(6, '下单状态')
-                        selected_stock_info = selected_stock_info[cols]
-                        my_market.update_market_data(selected_df=selected_stock_info)
-                        
-                        #首次上榜发送微信通知
-                        if first_time:
-                            title = f"蚂蚁选股提醒：{symbol}{selected_stock_info.iloc[0]['名称']}上榜"
-                            message = f"{now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}最新价：{selected_stock_info.iloc[0]['最新价']}，涨跌幅：{selected_stock_info.iloc[0]['涨跌幅']}，分析结果：{selected_stock_info.iloc[0]['分析结果']}，龙虎榜天数：{selected_stock_info.iloc[0]['龙虎榜天数']}，{lhb_message}"
-                            send_wechat_notification(title, message)
-                    else:                                
-                        logger.error(f"selected_stock_info:{selected_stock_info}为空，股票{symbol}未上榜")
-    #end_time = time.time()
-    #elapsed_time = end_time - start_time
-    #logger.info(f"本次回调函数运行用时: {elapsed_time:.2f}秒")
-
-def get_max_updownrate(symbol): #获取该股票的最大涨跌幅
+def get_max_updownrate(symbol): 
+    """获取该股票的最大涨跌幅"""
     if symbol[:2] == '00' or symbol[:2] == '60':
         max_updownrate = "10PCT"
-    elif symbol[:2] == '688' or symbol[:2] == '30':
+    elif symbol[:2] == '68' or symbol[:2] == '30':
         max_updownrate = "20PCT"
     else:
         max_updownrate = "30PCT"  
@@ -732,8 +711,6 @@ def get_max_updownrate(symbol): #获取该股票的最大涨跌幅
         threshold_updownrate = my_market.THRESHOLD_CUR_UPDOWNRATE_30PCT
         threshold_hist_updownrate = my_market.THRESHOLD_HIST_UPDOWNRATE_30PCT
     return threshold_updownrate, threshold_hist_updownrate
-    
-
 
 def get_stock_hist_thread():
     """获取股票历史数据线程"""
@@ -822,6 +799,7 @@ def get_stock_hist_thread():
                     last_df['最大涨幅观察期内最大涨幅'] = max_price
                     #将last_df添加到g_stocks_hist_df中
                     g_stocks_hist_df = pd.concat([g_stocks_hist_df, last_df], axis=0, ignore_index=True)
+                    # 统一到东方财经的格式
                     #东方财经
                     #股票代码	开盘	收盘	最高	最低	成交量	成交额	   振幅	   涨跌幅	涨跌额	换手率	涨幅阈值	历史涨幅阈值	布林中轨	       布林上轨	            布林下轨	        5日均线	 涨停板观察天数 涨停板观察期内最近涨停板天数	最高价观察天数	最高价观察期内最近最高价天数	最高价观察期内最近最高价	趋势观察天数	趋势观察期内趋势模式	趋势观察期内趋势R²	    趋势观察期内趋势系数	  最大涨幅观察天数	最大涨幅观察期内最大涨幅距今天数	最大涨幅观察期内最大涨幅
                     #601665	   5.55	   5.78	   5.85	   5.54	  585887 336901070	5.63	4.9	    0.27	1.21	8.5	      4.5	         5.386500000000001	5.667346464891595	5.105653535108407	5.5075	60           -1	                          40	         39	                           5.85	                     30	            U	                  0.36646530505190134	6.008660416334252e-05	10	             9	                              4.9
@@ -925,8 +903,6 @@ def timeout_decorator(timeout_seconds):
         return wrapper
     return decorator
 
-
-
 def subscribe_quote_thread():
     """选股线程"""
     global A_condidate_list
@@ -935,18 +911,10 @@ def subscribe_quote_thread():
     concept_symbol_list = []
     seq = 0
     while True:
-        if not DEBUG:
-            #如果当前时间的后八位大于15点05分，则退出程序
-            current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            if current_time[11:19] >= "15:05:00":
-                logger.info("当前时间大于15点05分，退出程序")
-                os._exit(0)  # 使用os._exit(0)强制退出
         if my_market.industry_df is not None and not my_market.industry_df.empty:
             # 获取my_market.industry_data中的symbol列,去重后转为列表
             industry_symbol_list = my_market.industry_df['代码'].unique().tolist()
         if my_market.concept_df is not None and not my_market.concept_df.empty:
-
-
             # 获取my_market.concept_df中的symbol列,去重后转为列表
             concept_symbol_list = my_market.concept_df['代码'].unique().tolist()
         # 将行业和概念股票代码列表合并并去重
@@ -959,6 +927,7 @@ def subscribe_quote_thread():
 
         # 如果symbol_list与last_symbol_list不同，则需要重新订阅
         if A_condidate_list != last_symbol_list:
+            print(A_condidate_list)
             if seq > 0:
                 xtdata.unsubscribe_quote(seq)
             if not A_condidate_list:
@@ -967,14 +936,12 @@ def subscribe_quote_thread():
                 continue
             symbol_list = A_condidate_list
 
-
-
             stock_list = [f"{symbol}.SH" if symbol.startswith('6') else 
-                            f"{symbol}.BJ" if symbol.startswith('8') else
+                            f"{symbol}.BJ" if symbol.startswith('8') or symbol.startswith('4') else
                             f"{symbol}.SZ" if symbol.startswith('0') or symbol.startswith('3') else symbol 
                             for symbol in symbol_list]
             seq = xtdata.subscribe_whole_quote(stock_list, callback=subscribe_whole_quote_call_back)
-            logger.info(f"新订阅个股行情数量{len(stock_list)}，原订阅（如有）已取消")
+            logger.info(f"新订阅个股行情数量{len(stock_list)}，订阅号为{seq}，原订阅（如有）已取消")
             last_symbol_list = A_condidate_list.copy()
         time.sleep(10)
 
@@ -995,7 +962,7 @@ def update_trading_thread(acc):
                     if trade.order_type == xtconstant.STOCK_BUY and trade.strategy_name == STRATEGY_NAME:
                         if trade.stock_code not in buy_in_list:
                             buy_in_list.append(trade.stock_code)
-            #如果买入的股票数量大于今天已买入的股票数量，则更新今天已买入的股票数量
+            #如果买入的股票支数大于今天已买入的股票支数，则更新今天已买入的股票支数
             if len(buy_in_list) > STOCK_NUMBERS_BOUGHT_IN_TODAY:
                 STOCK_NUMBERS_BOUGHT_IN_TODAY = len(buy_in_list)
                 logger.info(f"今天已买入的股票数量{STOCK_NUMBERS_BOUGHT_IN_TODAY}")
@@ -1039,17 +1006,7 @@ class MyXtQuantTraderCallback(XtQuantTraderCallback):
         A_bought_list.remove(bought_info)
         logger.info(f"已从A_bought_list中删除已下单的订单记录: {bought_info}")
         # 更新bought_list文件
-        try:
-            today = datetime.now().strftime('%Y%m%d')
-            data_dir = os.path.join(os.path.dirname(__file__), 'data')
-            filename = os.path.join(data_dir, f'bought_list_{today}.txt')
-            with open(filename, 'w', encoding='utf-8') as f:
-                for info in A_bought_list:
-                    if isinstance(info, dict):
-                        # 使用repr确保字典格式正确写入
-                        f.write(f'{repr(info)}\n')
-        except Exception as e:
-            logger.error(f"更新bought_list文件时出错: {e}")
+        write_bought_list_to_file()
 
     def on_stock_order(self, order):
         """委托回报推送"""
@@ -1065,8 +1022,9 @@ class MyXtQuantTraderCallback(XtQuantTraderCallback):
 
     def on_stock_trade(self, trade):
         """成交变动推送"""
-        logger.info(f'成交回调 {trade.order_remark}')
+        logger.info(f'成交回调{trade.stock_code, trade.order_status, trade.order_id, trade.order_remark}')
         my_market.update_trading_data(trades=[trade])
+
     def on_stock_trade_order_to_cancel(self, trade):
         """成交回报推送后取消订单"""
         try:
@@ -1091,23 +1049,7 @@ class MyXtQuantTraderCallback(XtQuantTraderCallback):
         try:
             for bought_info in A_bought_list[:]: # 使用切片创建副本进行遍历
                 if bought_info.get('seq') == order_error.order_id:
-                    A_bought_list.remove(bought_info)
-                    logger.info(f"已从A_bought_list中删除委托失败的订单记录: {bought_info}")
-                    
-                    # 更新bought_list文件
-                    try:
-                        today = datetime.now().strftime('%Y%m%d')
-                        data_dir = os.path.join(os.path.dirname(__file__), 'data')
-                        filename = os.path.join(data_dir, f'bought_list_{today}.txt')
-                        with open(filename, 'w', encoding='utf-8') as f:
-                            for info in A_bought_list:
-                                if isinstance(info, dict):
-                                    # 使用repr确保字典格式正确写入
-                                    f.write(f'{repr(info)}\n')
-                        logger.info(f"已更新bought_list文件 {filename}")
-                    except Exception as e:
-                        logger.error(f"更新bought_list文件时出错: {e}")
-                    break
+                    self.delete_bought_info(bought_info)
         except Exception as e:
             logger.error(f"处理委托失败记录时出错: {e}")
         
@@ -1116,17 +1058,18 @@ class MyXtQuantTraderCallback(XtQuantTraderCallback):
             if my_market.selected_df is not None and not my_market.selected_df.empty:
                 mask = my_market.selected_df['seq'] == order_error.order_id
                 if mask.any():
-                    my_market.selected_df.loc[mask, '下单状态'] = f"委托失败: {order_error.error_msg}"
                     stock_code = my_market.selected_df.loc[mask, '代码'].values[0]
+                    my_market.selected_df.loc[mask, '下单状态'] = f"委托失败: {order_error.error_msg}"
                     logger.info(f"已更新selected_df中{stock_code}订单的下单状态为委托失败: 委托失败")
-            my_market.selected_df.loc[my_market.selected_df['代码'] == stock_code, 'seq'] = 0
+                    # 将这行移到if内部，只有当找到匹配订单时才执行
+                    my_market.selected_df.loc[my_market.selected_df['代码'] == stock_code, 'seq'] = 0
         except Exception as e:
             logger.error(f"处理委托失败记录时出错: {e}")
 
 
     def on_cancel_error(self, cancel_error):
         """撤单失败推送"""
-        logger.info(f"{datetime.now()} {sys._getframe().f_code.co_name}，{cancel_error.order_id}，{cancel_error.error_msg}")
+        logger.info(f"撤单失败推送：{datetime.now()} {sys._getframe().f_code.co_name}，{cancel_error.order_id}，{cancel_error.error_msg}")
 
     def on_order_stock_async_response(self, response):
         """异步下单回报推送"""
@@ -1173,16 +1116,31 @@ def start_web_server():
     except Exception as e:
         logger.error(f"启动网页服务器时出错: {e}")
 
-def main():
+def update_cancel_seconds(seconds):
     try:
-        # 启动市场数据更新
-        my_market.start()
-        
-        # 启动Web服务器
-        start_web_server()
+        response = requests.post(
+            'http://localhost:8080/update_cancel_seconds',  # 根据实际情况修改URL
+            json={'cancel_seconds': seconds}
+        )
+        result = response.json()
+        if result.get('success'):
+            print('撤单时间更新成功')
+        else:
+            print(f'撤单时间更新失败: {result.get("error")}')
     except Exception as e:
-        logger.error(f"程序启动时出错：{e}")
+        print(f'请求出错: {str(e)}')
 
+def run_forever():
+    while True:
+        current_date = datetime.now().date()
+        if 'last_checked_date' not in locals():
+            last_checked_date = current_date
+        if current_date != last_checked_date:
+            print("日期已变化，新的一天开始，程序将退出")
+            #退出本程序
+            sys.exit()  
+        time.sleep(1)    
+    
 if __name__ == '__main__':
     # 设置日志
     logger = my_market.setup_logger()
@@ -1203,16 +1161,10 @@ if __name__ == '__main__':
                 proc_info['cmdline'] and # 命令行参数存在
                 'mytrade_zhuizhangtingban.py' in proc_info['cmdline'][-1]): # 运行的是当前脚本
                 
-                logger.info("程序已在运行,退出")
+                logger.info("检测到已有同一程序在运行，本次启动退出")
                 os._exit(0)
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
-    DEBUG = True
-    if not DEBUG:
-        #如果今天不是交易日，则跳过
-        if not is_tradeday():
-            print("今天不是交易日，跳过")
-            os._exit(0)
     global g_asset
     global g_orders
     global g_trades
@@ -1230,8 +1182,7 @@ if __name__ == '__main__':
     my_market.load_server_chan_keys()
     my_market.load_all_stocks_info()
     my_market.load_selected_stocks_info_from_file()    
-    read_bought_list()
-
+    read_bought_list_from_file()
 
     # 确保交易系统正确初始化
     try:
@@ -1324,9 +1275,7 @@ if __name__ == '__main__':
         logger.info(f"发现新版本 {new_ver}，更新内容：{changelog}")
 
     # 阻塞主线程退出
-    xt_trader.run_forever()
+    #xt_trader.run_forever()
+    run_forever()
     # 如果使用vscode pycharm等本地编辑器 可以进入交互模式 方便调试 （把上一行的run_forever注释掉 否则不会执行到这里）
     interact()
-
-    # 启动主函数
-    main()

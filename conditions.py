@@ -44,6 +44,16 @@ def check_stock_conditions(updownrate, last_price, hist_dict):
             result = f"未突破五日线{last_price}<{ma_5}"
             return selected,result
         
+        # 检查涨幅条件
+        if '最大涨幅观察期内最大涨幅' in hist_dict:
+            max_updownrate = hist_dict['最大涨幅观察期内最大涨幅']
+        else:
+            logger.error(f"最大涨幅观察期内最大涨幅不存在{hist_dict}")
+            return selected,"最大涨幅观察期内最大涨幅不存在"
+        if max_updownrate > hist_dict.get('涨幅阈值', ''):  
+            result = f"最大涨幅观察期内最大涨幅{max_updownrate}>涨幅阈值{hist_dict.get('涨幅阈值', '')}"
+            return selected,result
+
         # 检查趋势条件
         if '趋势观察期内趋势模式' in hist_dict:
             trend_mode = hist_dict['趋势观察期内趋势模式']
@@ -54,10 +64,13 @@ def check_stock_conditions(updownrate, last_price, hist_dict):
                 else:
                     trend_result = f"趋势为{trend_mode}且R²{hist_dict['趋势观察期内趋势R²']}小于0.5"
             elif trend_mode == 'N':
-                result = f"趋势为{trend_mode}"
-                return selected,result
+                if '趋势观察期内趋势R²' in hist_dict and hist_dict['趋势观察期内趋势R²'] > 0.7:
+                    result = f"趋势为{trend_mode}且R²{hist_dict['趋势观察期内趋势R²']}大于0.7"
+                    return selected,result
+                else:
+                    trend_result = f"趋势为{trend_mode}但R²{hist_dict['趋势观察期内趋势R²']}小于0.7"
             else:
-                trend_result = f"趋势为{trend_mode}"
+                trend_result = f"趋势为{trend_mode}，R²为{hist_dict['趋势观察期内趋势R²']}"
         else:
             logger.error(f"趋势观察期内趋势模式不存在{hist_dict}")
             return selected,"趋势观察期内趋势模式不存在"
@@ -76,7 +89,7 @@ def check_stock_conditions(updownrate, last_price, hist_dict):
         if '最高价观察期内最高价' in hist_dict:
             max_hist_price = hist_dict['最高价观察期内最高价']
             if max_hist_price > hist_dict.get('历史涨幅阈值', ''):
-                result = f"符合雄韬股份型{hist_dict.get('最高价观察期内最高价到今天的交易日天数', '')}天内最高价{max_hist_price}>历史涨幅阈值{hist_dict.get('历史涨幅阈值', '')}"
+                result = f"符合股价低于近期最高价型{hist_dict.get('最高价观察期内最高价到今天的交易日天数', '')}天内最高价{max_hist_price}>当前价{last_price}"
                 return selected,result+";"+trend_result
         else:
             logger.error(f"最高价观察期内最高价或最高价观察期内最高价距今天的交易日天数不存在{hist_dict}")

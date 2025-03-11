@@ -20,6 +20,7 @@ import shutil
 import tempfile
 import requests
 from packaging import version  # 需要安装 packaging 包
+import math
 
 # 在导入其他模块之前先打补丁
 import eventlet.support.greendns
@@ -228,21 +229,33 @@ def get_trading_info():
             'order_error': None
         }), 200
 
+def clean_nested_data(data):
+    """递归清理嵌套数据中的NaN值"""
+    if isinstance(data, dict):
+        return {k: clean_nested_data(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [clean_nested_data(item) for item in data]
+    elif isinstance(data, float) and math.isnan(data):
+        return None
+    return data
+
 @app.route('/api/market_info')
 def get_market_info():
     """获取市场信息"""
     try:
+        # 获取原始数据
         industry_info = my_market.get_industry_info()
-        
         concept_info = my_market.get_concept_info()
-        
         selected_info = my_market.get_selected_info()
         
-        return jsonify({
-            'industry': industry_info,
-            'concept': concept_info,
-            'selected': selected_info
-        })
+        # 深度清洗数据
+        cleaned_data = {
+            'industry': clean_nested_data(industry_info),
+            'concept': clean_nested_data(concept_info),
+            'selected': clean_nested_data(selected_info)
+        }
+        
+        return jsonify(cleaned_data)
     except Exception as e:
         logger.error(f"获取市场信息时出错: {e}")
         import traceback
