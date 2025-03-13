@@ -1,6 +1,6 @@
 {
-    "version": "1.0.7",
-    "changelog": "1.程序每天自动关机，可以用monitor.py每天重启\n2. 更改了算法",
+    "version": "1.0.8",
+    "changelog": "1.算法增加了主力净流入的判断\n2. 优化了程序",
     "package_url": "https://github.com/mayicome/mazongzhuiban/archive/refs/heads/main.zip",
     "sha256": "39da7d49b0c5d3bb6c15310ff6e72987ec72dc6c2fe68c7ef5e5c1ac44ae2553"
 }
