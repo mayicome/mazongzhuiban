@@ -92,7 +92,7 @@ class MarketData:
                 
                 # Account
                 self.PATH_QMT = config.get('Account', 'PATH_QMT', fallback='D:\\国金证券QMT交易端\\userdata_mini')
-                self.ACCOUNT_ID = config.get('Account', 'ACCOUNT_ID', fallback='8883351642')
+                self.ACCOUNT_ID = config.get('Account', 'ACCOUNT_ID', fallback='8881234567')
                 
                 # Threshold
                 self.THRESHOLD_CUR_UPDOWNRATE_10PCT = config.getfloat('Threshold', 'THRESHOLD_CUR_UPDOWNRATE_10PCT', fallback=8.5)
@@ -330,7 +330,6 @@ class MarketData:
     def get_selected_info(self):
         """获取已选股票信息"""
         if self.selected_df is not None and not self.selected_df.empty:
-            #print(f"selected_df: {self.selected_df}")
             return self.selected_df.to_dict('records')
         return []
 

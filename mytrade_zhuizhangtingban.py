@@ -13,9 +13,9 @@ import numpy as np
 import os
 from market_data import my_market
 import requests
-from chncal import *
 import psutil
 import json
+from chncal import *
 
 xtdata.enable_hello = False  # 添加此行以隐藏欢迎消息
 
@@ -40,6 +40,9 @@ def check_update():
 
 # 读取今日已买入股票列表
 def read_bought_list_from_file():
+    global A_bought_list
+    global hot_industry_list
+    global hot_concept_list
     try:
         # 获取今天的日期作为文件名
         today = datetime.now().strftime('%Y%m%d')
@@ -64,6 +67,26 @@ def read_bought_list_from_file():
             logger.info(f"未读取到今日已买列表")
     except Exception as e:
         logger.error(f"读取买入列表文件时出错: {e}")
+
+    try:
+        last_day = datetime.now() - timedelta(days=1)
+        while not is_tradeday(last_day):
+            last_day = last_day - timedelta(days=1)
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        filename = os.path.join(data_dir, f'hot_industry_{last_day.strftime("%Y%m%d")}.csv')
+        if os.path.exists(filename):
+            df = pd.read_csv(filename)
+            # 读取df的前三个板块名称
+            hot_industry_list = df['板块名称'].head(3).tolist()
+            print(hot_industry_list)
+        filename = os.path.join(data_dir, f'hot_concept_{last_day.strftime("%Y%m%d")}.csv')
+        if os.path.exists(filename):
+            df = pd.read_csv(filename)
+            # 读取df的前三个板块名称
+            hot_concept_list = df['板块名称'].head(3).tolist()
+            print(hot_concept_list)
+    except Exception as e:
+        logger.error(f"读取热门行业和概念板块文件时出错: {e}")
 
 def write_bought_list_to_file():
     try:
@@ -108,7 +131,6 @@ def symbol2stock(symbol):
     
 #获取某支股票的历史数据
 def get_stock_hist(symbol, startdate, enddate, adjust, max_retries=3):
-    global g_seq
     stock = symbol2stock(symbol)
 
     period = "1d"
@@ -140,14 +162,14 @@ def get_stock_hist(symbol, startdate, enddate, adjust, max_retries=3):
             'low': '最低'
         })
         
-        # 计算涨跌幅 (避免使用inplace)
-        data['涨跌幅'] = (data['收盘'] / data['收盘'].shift(1) - 1) * 100
+        # 计算涨跌幅 (避免使用inplace),注释：这里采用当天的最高价计算涨跌幅，而不是收盘价，相当于是最大涨跌幅
+        data['涨跌幅'] = (data['最高'] / data['收盘'].shift(1) - 1) * 100
         # 替换 fillna(inplace=True) 的写法
         data['涨跌幅'] = data['涨跌幅'].fillna(0)
         data['涨跌幅'] = data['涨跌幅'].round(2)
         
         # 计算涨跌额
-        data['涨跌额'] = (data['收盘'] - data['收盘'].shift(1)).round(2)
+        data['涨跌额'] = (data['最高'] - data['收盘'].shift(1)).round(2)
         data['涨跌额'] = data['涨跌额'].fillna(0)
         return data
     else:
@@ -444,9 +466,12 @@ def subscribe_whole_quote_call_back(data):
     global A_selected_list
     global A_bought_list
     global STOCK_NUMBERS_BOUGHT_IN_TODAY
+    global last_trading_heartbeat
     
     for stock in data:
-        print(f"stock: {stock}")
+        #更新心跳包
+        last_trading_heartbeat = time.time()#datetime.now()
+
         first_time = False
         seq =  0
         symbol = stock.split('.')[0]  #例如：stock: 601665.SH symbol: 601665            
@@ -491,7 +516,7 @@ def subscribe_whole_quote_call_back(data):
         else:
             # 将hist_df转换为字典格式（只取第一行）
             hist_dict = hist_df.iloc[0].to_dict()
-            selected, result = conditions.check_stock_conditions(updownrate, last_price, hist_dict)
+            selected, result = conditions.check_stock_conditions(symbol, updownrate, last_price, hist_dict)
         
         if selected:                    
             # 下单买入
@@ -500,32 +525,6 @@ def subscribe_whole_quote_call_back(data):
             if symbol not in A_selected_list:
                 A_selected_list.append(symbol)
                 first_time = True
-            
-            # 更新行业板块数据
-            try:
-                if my_market.industry_df is not None and not my_market.industry_df.empty:
-                    mask = my_market.industry_df['代码'] == symbol
-                    if mask.any():
-                        try:
-                            my_market.industry_df.loc[mask, '分析结果'] = result
-                            logger.debug(f"Updated industry analysis result for {symbol}")
-                        except Exception as e:
-                            logger.error(f"Error updating industry analysis result for {symbol}: {e}")
-            except Exception as e:
-                logger.error(f"Error processing industry data for {symbol}: {e}")
-                
-            # 更新概念板块数据
-            try:
-                if my_market.concept_df is not None and not my_market.concept_df.empty:
-                    mask = my_market.concept_df['代码'] == symbol
-                    if mask.any():
-                        try:
-                            my_market.concept_df.loc[mask, '分析结果'] = result
-                            logger.debug(f"Updated concept analysis result for {symbol}")
-                        except Exception as e:
-                            logger.error(f"Error updating concept analysis result for {symbol}: {e}")
-            except Exception as e:
-                logger.error(f"Error processing concept data for {symbol}: {e}")
 
             if any(stock == bought_info['stock'] for bought_info in A_bought_list):
                 order_status = "已下过单且未被撤销"
@@ -801,8 +800,12 @@ def get_stock_hist_thread():
                     g_stocks_hist_df = pd.concat([g_stocks_hist_df, last_df], axis=0, ignore_index=True)
                     # 统一到东方财经的格式
                     #东方财经
-                    #股票代码	开盘	收盘	最高	最低	成交量	成交额	   振幅	   涨跌幅	涨跌额	换手率	涨幅阈值	历史涨幅阈值	布林中轨	       布林上轨	            布林下轨	        5日均线	 涨停板观察天数 涨停板观察期内最近涨停板天数	最高价观察天数	最高价观察期内最近最高价天数	最高价观察期内最近最高价	趋势观察天数	趋势观察期内趋势模式	趋势观察期内趋势R²	    趋势观察期内趋势系数	  最大涨幅观察天数	最大涨幅观察期内最大涨幅距今天数	最大涨幅观察期内最大涨幅
-                    #601665	   5.55	   5.78	   5.85	   5.54	  585887 336901070	5.63	4.9	    0.27	1.21	8.5	      4.5	         5.386500000000001	5.667346464891595	5.105653535108407	5.5075	60           -1	                          40	         39	                           5.85	                     30	            U	                  0.36646530505190134	6.008660416334252e-05	10	             9	                              4.9
+                    #股票代码	开盘	收盘	最高	最低	成交量	成交额	   振幅	   涨跌幅	涨跌额	换手率	涨幅阈值	历史涨幅阈值	布林中轨	       布林上轨	            布林下轨	        
+                    # 5日均线	 涨停板观察天数 涨停板观察期内最近涨停板天数	最高价观察天数	最高价观察期内最近最高价天数	
+                    # 最高价观察期内最近最高价	趋势观察天数	趋势观察期内趋势模式	趋势观察期内趋势R²	    趋势观察期内趋势系数	  最大涨幅观察天数	最大涨幅观察期内最大涨幅距今天数	最大涨幅观察期内最大涨幅
+                    # 601665	   5.55	   5.78	   5.85	   5.54	  585887 336901070	5.63	4.9	    0.27	1.21	8.5	      4.5	         5.386500000000001	5.667346464891595	5.105653535108407	
+                    # 5.5075	60           -1	                          40	         39	                           5.85	                     30
+                    # 	            U	                  0.36646530505190134	6.008660416334252e-05	10	             9	                              4.9
                     #logger.info(f"获取{symbol}的历史数据成功，已添加到{g_stocks_hist_df}中")
                     #国金miniQMT
                     #open   high    low  close  volume        amount  settelementPrice  openInterest  preClose  suspendFlag                            日期
@@ -819,8 +822,12 @@ def refresh_hot_board_thread(board):
     while True:
         if board == "industry":
             stock_board_name_em_df = get_board_industry_name()
+            #保存到当天的文件
+            stock_board_name_em_df.to_csv(f'data/hot_industry_{datetime.now().strftime("%Y%m%d")}.csv', index=False)
         else:
             stock_board_name_em_df = get_board_concept_name()
+            #保存到当天的文件
+            stock_board_name_em_df.to_csv(f'data/hot_concept_{datetime.now().strftime("%Y%m%d")}.csv', index=False)
         if stock_board_name_em_df.empty:
             time.sleep(1)
             continue
@@ -836,9 +843,19 @@ def refresh_hot_board_thread(board):
             for row_index, row_data in top_boards.iterrows():
                 sector = row_data['板块名称']
                 if board == "industry":
-                    stock_board_cons_em_df = get_board_industry_cons(sector)
+                    print("sector:",sector,"hot_industry_list:",hot_industry_list)
+                    if sector not in hot_industry_list:
+                        stock_board_cons_em_df = get_board_industry_cons(sector)
+                    else:
+                        print(f"板块{sector}昨天在榜单前三名，跳过")
+                        continue
                 else:
-                    stock_board_cons_em_df = get_board_concept_cons(sector)
+                    print("sector:",sector,"hot_concept_list:",hot_concept_list)
+                    if sector not in hot_concept_list:
+                        stock_board_cons_em_df = get_board_concept_cons(sector)
+                    else:
+                        print(f"板块{sector}昨天在榜单前三名，跳过")
+                        continue
                 if stock_board_cons_em_df.empty:
                     time.sleep(1)
                     continue
@@ -909,8 +926,14 @@ def subscribe_quote_thread():
     last_symbol_list = []
     industry_symbol_list = []
     concept_symbol_list = []
-    seq = 0
+    global g_seq
     while True:
+        #如果时间大于下午3：05，则继续
+        if datetime.now().hour >= 15 and datetime.now().minute >= 5:
+            if g_seq > 0:
+                xtdata.unsubscribe_quote(g_seq)
+            time.sleep(10)
+            continue
         if my_market.industry_df is not None and not my_market.industry_df.empty:
             # 获取my_market.industry_data中的symbol列,去重后转为列表
             industry_symbol_list = my_market.industry_df['代码'].unique().tolist()
@@ -927,9 +950,8 @@ def subscribe_quote_thread():
 
         # 如果symbol_list与last_symbol_list不同，则需要重新订阅
         if A_condidate_list != last_symbol_list:
-            print(A_condidate_list)
-            if seq > 0:
-                xtdata.unsubscribe_quote(seq)
+            if g_seq > 0:
+                xtdata.unsubscribe_quote(g_seq)
             if not A_condidate_list:
                 time.sleep(10)
                 logger.info("没有可订阅的股票，等待10秒")
@@ -940,8 +962,8 @@ def subscribe_quote_thread():
                             f"{symbol}.BJ" if symbol.startswith('8') or symbol.startswith('4') else
                             f"{symbol}.SZ" if symbol.startswith('0') or symbol.startswith('3') else symbol 
                             for symbol in symbol_list]
-            seq = xtdata.subscribe_whole_quote(stock_list, callback=subscribe_whole_quote_call_back)
-            logger.info(f"新订阅个股行情数量{len(stock_list)}，订阅号为{seq}，原订阅（如有）已取消")
+            g_seq = xtdata.subscribe_whole_quote(stock_list, callback=subscribe_whole_quote_call_back)
+            logger.info(f"新订阅个股行情数量{len(stock_list)}，订阅号为{g_seq}，原订阅（如有）已取消")
             last_symbol_list = A_condidate_list.copy()
         time.sleep(10)
 
@@ -949,6 +971,10 @@ def update_trading_thread(acc):
     """更新交易数据的线程"""
     global STOCK_NUMBERS_BOUGHT_IN_TODAY
     while True:
+        #如果时间大于下午3：05，则继续
+        if datetime.now().hour >= 15 and datetime.now().minute >= 5:
+            time.sleep(10)
+            continue
         try:
             # 查询资产
             asset = xt_trader.query_stock_asset(acc)
@@ -1116,27 +1142,46 @@ def start_web_server():
     except Exception as e:
         logger.error(f"启动网页服务器时出错: {e}")
 
-def update_cancel_seconds(seconds):
-    try:
-        response = requests.post(
-            'http://localhost:8080/update_cancel_seconds',  # 根据实际情况修改URL
-            json={'cancel_seconds': seconds}
-        )
-        result = response.json()
-        if result.get('success'):
-            print('撤单时间更新成功')
-        else:
-            print(f'撤单时间更新失败: {result.get("error")}')
-    except Exception as e:
-        print(f'请求出错: {str(e)}')
-
 def run_forever():
+    global last_trading_heartbeat
+    global g_seq
     while True:
         current_date = datetime.now().date()
+        current_time = datetime.now().time()
+        
+        # 检查是否为交易日（周一到周五）
+        is_trading_day = is_tradeday()
+        
+        # 检查是否在交易时段
+        morning_start = datetime.strptime('09:30:00', '%H:%M:%S').time()
+        morning_end = datetime.strptime('11:30:00', '%H:%M:%S').time()
+        afternoon_start = datetime.strptime('13:00:00', '%H:%M:%S').time()
+        afternoon_end = datetime.strptime('15:00:00', '%H:%M:%S').time()
+        
+        is_trading_hour = (
+            (current_time >= morning_start and current_time <= morning_end) or  # 上午交易时段
+            (current_time >= afternoon_start and current_time <= afternoon_end)  # 下午交易时段
+        )
+
+        # 只在交易日的交易时段内检查心跳
+        if is_trading_day and is_trading_hour:
+            # 检查是否收到心跳
+            time_since_last_heartbeat = time.time() - last_trading_heartbeat
+            
+            # 如果超过30秒没有收到心跳消息(last_trading_heartbeat更新)
+            if time_since_last_heartbeat > 30:
+                logger.info(f"超过{time_since_last_heartbeat}秒没有收到心跳消息，请检查miniQMT是否正常运行")
+            else:
+                time_since_last_heartbeat = time.time() #非交易时段更新time_since_last_heartbeat，以免进入交易时段时被判断为超时
+        #非交易时段取消订阅
+        else:
+            if g_seq > 0:
+                xtdata.unsubscribe_quote(g_seq)
+                g_seq = 0
         if 'last_checked_date' not in locals():
             last_checked_date = current_date
         if current_date != last_checked_date:
-            print("日期已变化，新的一天开始，程序将退出")
+            logger.info("日期已变化，新的一天开始，程序将退出")
             #退出本程序
             sys.exit()  
         time.sleep(1)    
@@ -1174,6 +1219,8 @@ if __name__ == '__main__':
     g_seq = 0
     g_watch_list = []
     A_bought_list = []
+    hot_industry_list = []
+    hot_concept_list = []
     STOCK_NUMBERS_BOUGHT_IN_TODAY = 0
     STRATEGY_NAME = "马总打板策略"
     A_selected_list = []
@@ -1183,6 +1230,7 @@ if __name__ == '__main__':
     my_market.load_all_stocks_info()
     my_market.load_selected_stocks_info_from_file()    
     read_bought_list_from_file()
+    last_trading_heartbeat = time.time()
 
     # 确保交易系统正确初始化
     try:

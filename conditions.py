@@ -1,11 +1,13 @@
 import pandas as pd
 import logging
+from capital_flow import get_realtime_capital_flow
 
 logger = logging.getLogger('mytrade')
 
-def check_stock_conditions(updownrate, last_price, hist_dict):
+def check_stock_conditions(symbol, updownrate, last_price, hist_dict):
     """检查股票条件"""
-    try:
+    #try:
+    if True:
         selected = False
         if pd.isnull(updownrate) or pd.isnull(last_price):
             return selected,"数据不完整"
@@ -19,6 +21,8 @@ def check_stock_conditions(updownrate, last_price, hist_dict):
         # '趋势观察天数': 30, '趋势观察期内趋势模式': 'U', '趋势观察期内趋势R²': 0.36, '趋势观察期内趋势系数': 0.01,
         # '最大涨幅观察天数': 10, '最大涨幅观察期内最大涨幅距今天的交易日天数': 11, '最大涨幅观察期内最大涨幅': 4.16}
         
+        result = ""
+
         # 检查涨跌幅是否达到阈值
         if updownrate < hist_dict.get('涨幅阈值', ''):
             result = f"涨幅不够{updownrate}<{hist_dict.get('涨幅阈值', '')}"
@@ -50,25 +54,28 @@ def check_stock_conditions(updownrate, last_price, hist_dict):
         else:
             logger.error(f"最大涨幅观察期内最大涨幅不存在{hist_dict}")
             return selected,"最大涨幅观察期内最大涨幅不存在"
-        if max_updownrate > hist_dict.get('涨幅阈值', ''):  
-            result = f"最大涨幅观察期内最大涨幅{max_updownrate}>涨幅阈值{hist_dict.get('涨幅阈值', '')}"
+        if max_updownrate > hist_dict.get('历史涨幅阈值', ''):  
+            result = f"最大涨幅观察期内最大涨幅{max_updownrate}>历史涨幅阈值{hist_dict.get('历史涨幅阈值', '')}"
             return selected,result
 
         # 检查趋势条件
         if '趋势观察期内趋势模式' in hist_dict:
             trend_mode = hist_dict['趋势观察期内趋势模式']
             if trend_mode == 'L':
-                if '趋势观察期内趋势R²' in hist_dict and abs(hist_dict['趋势观察期内趋势R²']) > 0.5:
-                    result = f"趋势为{trend_mode}且R²{hist_dict['趋势观察期内趋势R²']}大于0.5"
+                if '趋势观察期内趋势系数' in hist_dict and hist_dict['趋势观察期内趋势系数'] > 0.07:
+                    result = f"趋势为{trend_mode}且趋势系数{hist_dict['趋势观察期内趋势系数']}大于0.07（强上升趋势）"
+                    return selected,result
+                elif '趋势观察期内趋势系数' in hist_dict and hist_dict['趋势观察期内趋势系数'] < -0.03:
+                    result = f"趋势为{trend_mode}且趋势系数{hist_dict['趋势观察期内趋势系数']}小于-0.03(显著下跌趋势)"
                     return selected,result
                 else:
-                    trend_result = f"趋势为{trend_mode}且R²{hist_dict['趋势观察期内趋势R²']}小于0.5"
+                    trend_result = f"趋势为{trend_mode}且趋势系数{hist_dict['趋势观察期内趋势系数']}在-0.03到0.06之间"
             elif trend_mode == 'N':
-                if '趋势观察期内趋势R²' in hist_dict and hist_dict['趋势观察期内趋势R²'] > 0.7:
-                    result = f"趋势为{trend_mode}且R²{hist_dict['趋势观察期内趋势R²']}大于0.7"
+                if '趋势观察期内趋势R²' in hist_dict and hist_dict['趋势观察期内趋势系数'] < -0.3 and hist_dict['趋势观察期内趋势R²'] > 0.7:
+                    result = f"趋势为{trend_mode}且趋势系数{hist_dict['趋势观察期内趋势系数']}小于-0.3且R²{hist_dict['趋势观察期内趋势R²']}大于0.7"
                     return selected,result
                 else:
-                    trend_result = f"趋势为{trend_mode}但R²{hist_dict['趋势观察期内趋势R²']}小于0.7"
+                    trend_result = f"趋势为{trend_mode}但趋势系数{hist_dict['趋势观察期内趋势系数']}大于-0.3"
             else:
                 trend_result = f"趋势为{trend_mode}，R²为{hist_dict['趋势观察期内趋势R²']}"
         else:
@@ -85,19 +92,44 @@ def check_stock_conditions(updownrate, last_price, hist_dict):
             return selected,"涨停板观察期内最近涨停板到今天的交易日天数或涨停板观察天数不存在"
         
         # 检查最高价条件
-        selected = True
         if '最高价观察期内最高价' in hist_dict:
             max_hist_price = hist_dict['最高价观察期内最高价']
-            if max_hist_price > hist_dict.get('历史涨幅阈值', ''):
-                result = f"符合股价低于近期最高价型{hist_dict.get('最高价观察期内最高价到今天的交易日天数', '')}天内最高价{max_hist_price}>当前价{last_price}"
-                return selected,result+";"+trend_result
+            if max_hist_price > last_price:
+                result = f"符合股价低于近期最高价型{hist_dict.get('最高价观察期内最高价到今天的交易日天数', '')}天内最高价{max_hist_price}>当前价{last_price};"
+                #return selected,result+";"+trend_result
         else:
             logger.error(f"最高价观察期内最高价或最高价观察期内最高价距今天的交易日天数不存在{hist_dict}")
             return selected,"最高价观察期内最高价或最高价观察期内最高价距今天的交易日天数不存在"
         
-        result = "符合条件"
+        # 检查主力流入条件
+        flow_df = get_realtime_capital_flow()
+        
+        # 从flow_df的最后一行取主力净流入值
+        min_flow = flow_df.iloc[-1]['主力净流入']
+        # 找出flow_df的代码列中是否存在symbol
+        flow_df = flow_df[flow_df['代码'] == symbol]
+        if flow_df.empty:
+            result += f"主力净流入低于排名第400名的{min_flow};"
+            return selected,result+";"+trend_result
+        else:
+            # 从flow_df的最后一行取主力净流入值
+            main_flow = flow_df.iloc[-1]['主力净流入']
+            supper_rate = flow_df.iloc[-1]['超大单净占比']
+            big_rate = flow_df.iloc[-1]['大单净占比']
+            main_rate = supper_rate + big_rate
+            if symbol.startswith('0') or symbol.startswith('6'): #主板
+                if main_flow < 35000000:
+                    result = f"主力净流入{main_flow}小于3500万"
+                    return selected,result+";"+trend_result
+            else: #创业板
+                if main_flow < 50000000:
+                    result = f"主力净流入{main_flow}小于5000万"
+                    return selected,result+";"+trend_result
+        
+        selected = True
+        result += f"主力净流入{main_flow}，主力净占比{main_rate}达到要求且满足其他条件"
         return selected,result+";"+trend_result
         
-    except Exception as e:
-        logger.error(f"检查股票条件时出错：{e}")
-        return selected,"检查条件时出错"
+    #except Exception as e:
+    #    logger.error(f"检查股票条件时出错：{e}")
+    #    return selected,"检查条件时出错"

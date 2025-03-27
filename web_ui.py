@@ -47,11 +47,9 @@ def setup_logger():
     # 创建文件处理器
     log_dir = 'logs'
     os.makedirs(log_dir, exist_ok=True)
-    file_handler = TimedRotatingFileHandler(
-        os.path.join(log_dir, 'web_ui.log'),
-        when='midnight',
-        interval=1,
-        backupCount=30,
+    file_handler = logging.FileHandler(
+        filename=os.path.join(log_dir, 'web_ui.log'),
+        mode='a',  # 追加模式
         encoding='utf-8'
     )
     file_handler.setLevel(logging.INFO)
@@ -410,6 +408,7 @@ def update_single_buy_amount():
     try:
         data = request.get_json()
         my_market.SINGLE_BUY_AMOUNT = float(data['single_buy_amount'])
+        logger.info(f"更新单次买入金额: {my_market.SINGLE_BUY_AMOUNT}")
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"更新单次买入金额失败: {str(e)}")
@@ -428,6 +427,7 @@ def update_max_stocks():
     try:
         data = request.get_json()
         my_market.MAX_STOCKS_PER_DAY = int(data['max_stocks'])
+        logger.info(f"更新买入股票支数限制: {my_market.MAX_STOCKS_PER_DAY}")
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"更新买入股票支数限制失败: {str(e)}")
@@ -446,6 +446,7 @@ def update_cancel_seconds():
     try:
         data = request.get_json()
         my_market.CANCEL_ORDER_SECONDS = int(data['cancel_seconds'])
+        logger.info(f"更新撤单时间: {my_market.CANCEL_ORDER_SECONDS}")
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"更新撤单时间失败: {str(e)}")
