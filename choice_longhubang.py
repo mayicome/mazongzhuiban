@@ -2,10 +2,8 @@ import os
 import sys
 import pandas as pd
 import akshare as ak
-import csv
 import mplfinance as mpf
 from PyQt5.QtWidgets import QApplication, QWidget, QMessageBox, QTableWidgetItem, QAbstractItemView
-from PyQt5.QtGui import QBrush, QColor
 from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer
 from datetime import timedelta, datetime
@@ -167,14 +165,6 @@ def calculate_bollinger_bands(df, n, k):
     lower_band = ma - k * std
     return ma, upper_band, lower_band
 
-# 计算移动平均成交量（MAV）
-def calculate_mav(df, n):
-    # data: 输入的价格数据，如收盘价、开盘价等
-    # n: 移动平均线的时间周期
-    # k: 布林带的宽度倍数
-    mav = df.rolling(n).mean()
-    return mav
-
 #判断是否是涨停板
 def is_limit_up(symbol, price):
     if symbol[:2] in ("00", "60"):
@@ -185,46 +175,9 @@ def is_limit_up(symbol, price):
         return True
     return False
 
-# 往前查找首个线下阳线
-def underline_bullish(df):
-    for index, row in df.iloc[::-1].iterrows():
-        if row['close'] > row['open'] and row['close'] < row['ma_1']:
-            return index, row['close']
-    return None, '0'
-
-#往后查找首个线上阴线(收盘价在N日均线的上方5%的范围内)
-def upline_bearish(df):
-    for index, row in df.iterrows():
-        if row['close'] < row['open'] and row['close'] > row['ma_1'] and row['ma_1'] > row['ma_2']:
-            rate = (row['close'] - row['ma_1'])/row['ma_1']
-            return index, rate, row['close']
-    return None , 0,  '0'
-
-#较前一交易日增量
-def trade_increase(df):
-    if len(df) > 1:
-        df1 = df.iloc[-1]
-        df2 = df.iloc[-2]
-        if df1['volume'] > df2['volume']:
-            return True
-    return False
-
-#较前一交易日价升
-def price_up(df):
-    if len(df) > 1:
-        df1 = df.iloc[-1]
-        df2 = df.iloc[-2]
-        if df1['close'] > df2['close']:
-            return True
-    return False
-
 #价格变化率
 def price_increase_rate(p1, p2):
     return (p2-p1)/p2
-
-#成交量变化率(v2比v1增加的比例)
-def volume_increase_rate(v1, v2):
-    return (v2-v1)/v2
 
 #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ COMMON FUNCTION $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$#
 def process_symbol_data(df, ma1d, ma1m, ma2d, ma2m, ma_5):
@@ -562,7 +515,6 @@ class Main(QWidget, Ui_Dialog):
         self.last_time = datetime.now()
         self.label_additonal_message = ""
         self.is_handling_table = False
-        self.is_updating_table = False
 
         self.table_lock = ThreadSafeTable()
 
@@ -868,7 +820,6 @@ class Main(QWidget, Ui_Dialog):
             
             while self.is_handling_table:
                 time.sleep(0.001)
-            self.is_updating_table = True
             
             #删除历史数据
             row_count = stocks_table.rowCount()
@@ -915,7 +866,6 @@ class Main(QWidget, Ui_Dialog):
         
         first_time = ""
         first_price = ""
-        last_updownrate = 0
         #检查表格里是否已有该代码，有则先保存上榜时间，再删掉
         for i in range(row_count):
             item = self.tableWidget.item(i, 0)
@@ -923,7 +873,6 @@ class Main(QWidget, Ui_Dialog):
                 if symbol == item.text():
                     first_time = self.tableWidget.takeItem(i, 3).text()
                     first_price = self.tableWidget.takeItem(i, 5).text()
-                    last_updownrate = float(self.tableWidget.takeItem(i, 26).text())
                     # 删除第i行
                     self.tableWidget.removeRow(i)
 
@@ -939,9 +888,7 @@ class Main(QWidget, Ui_Dialog):
                 if first_price != "":
                     item = QTableWidgetItem(first_price)
             self.tableWidget.setItem(0, j, item)
-        if first_time == "": #说明是新增加的，这时做一下保存到csv的操作
-        #if not is_limit_up(symbol, updownrate):
-            #if is_limit_up(symbol, last_updownrate) or first_time == "":
+        if first_time == "": #说明是新增加的，这时做一下保存到csv的操作        
             notification.notify('提醒',f'{symbol}有新动向','蚂蚁选股','ant.ico',2)
             
             #如果当前时间大于等于9:30，则发送通知

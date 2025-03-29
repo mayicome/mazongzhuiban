@@ -53,7 +53,6 @@ class MarketData:
                 encoding='utf-8'
             )
             # 设置新日志文件的命名格式
-            file_handler.suffix = "%Y%m%d.log"
             file_handler.setLevel(logging.INFO)
             
             # 创建格式化器
@@ -398,24 +397,6 @@ class MarketData:
                 'order_remark':trade.order_remark,
             } for trade in self.trades] if self.trades else []
         return []
-
-    def update_market_info(self):
-        """更新市场数据"""
-        try:
-            # 获取行业板块数据
-            industry_df = self.get_industry_boards()
-            if industry_df is not None:  # 只检查是否为 None
-                self.industry_df = industry_df
-                self.logger.info("已更新行业板块数据")
-            
-            # 获取概念板块数据
-            concept_df = self.get_concept_boards()
-            if concept_df is not None:  # 只检查是否为 None
-                self.concept_df = concept_df
-                self.logger.info("已更新概念板块数据")
-            
-        except Exception as e:
-            self.logger.error(f"更新市场数据时出错: {e}")
 
     def on_toast_message(self, toast_message):
         """toast消息回调"""

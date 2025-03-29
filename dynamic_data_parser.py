@@ -40,21 +40,6 @@ def parse_dynamic_fund_data(html):
         print(f"JSON解析错误: {e}")
         return None
 
-def get_realtime_fund_data(stock_code):
-    """获取实时资金流数据（示例接口）"""
-    api_url = f"http://data.eastmoney.com/zjlx/{stock_code}.html"
-    params = {
-        'type': 'ajax',
-        'rt': int(time.time()*1000)
-    }
-    
-    try:
-        response = requests.get(api_url, params=params)
-        return response.json()['Result']['zljlr']
-    except Exception as e:
-        print(f"API请求失败: {e}")
-        return None
-
 # 使用示例
 with open('response.txt', 'r', encoding='utf-8') as f:
     html_content = f.read()

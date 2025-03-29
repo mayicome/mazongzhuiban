@@ -78,13 +78,11 @@ def read_bought_list_from_file():
             df = pd.read_csv(filename)
             # 读取df的前三个板块名称
             hot_industry_list = df['板块名称'].head(3).tolist()
-            print(hot_industry_list)
         filename = os.path.join(data_dir, f'hot_concept_{last_day.strftime("%Y%m%d")}.csv')
         if os.path.exists(filename):
             df = pd.read_csv(filename)
             # 读取df的前三个板块名称
             hot_concept_list = df['板块名称'].head(3).tolist()
-            print(hot_concept_list)
     except Exception as e:
         logger.error(f"读取热门行业和概念板块文件时出错: {e}")
 
@@ -231,14 +229,6 @@ def calculate_bollinger_bands(df, n, k):
     lower_band = ma - k * std
     return round(ma, 2), round(upper_band, 2), round(lower_band, 2)
 
-# 计算移动平均成交量（MAV）
-def calculate_mav(df, n):
-    # data: 输入的价格数据，如收盘价、开盘价等
-    # n: 移动平均线的时间周期
-    # k: 布林带的宽度倍数
-    mav = df.rolling(n).mean()
-    return round(mav, 2)
-
 #判断是否是涨停板
 def is_limit_up(symbol, price):
     if symbol[:2] in ("00", "60"):
@@ -290,39 +280,6 @@ def check_price_trend(recent_df):
     except np.linalg.LinAlgError:
         logger.warning("多项式拟合失败，返回默认值")
         return 'N', 0.0, 0.0
-
-# 往前查找首个线下阳线
-def underline_bullish(df):
-    for index, row in df.iloc[::-1].iterrows():
-        if row['close'] > row['open'] and row['close'] < row['ma_1']:
-            return index, row['close']
-    return None, '0'
-
-#往后查找首个线上阴线(收盘价在N日均线的上方5%的范围内)
-def upline_bearish(df):
-    for index, row in df.iterrows():
-        if row['close'] < row['open'] and row['close'] > row['ma_1'] and row['ma_1'] > row['ma_2']:
-            rate = (row['close'] - row['ma_1'])/row['ma_1']
-            return index, rate, row['close']
-    return None , 0,  '0'
-
-#较前一交易日增量
-def trade_increase(df):
-    if len(df) > 1:
-        df1 = df.iloc[-1]
-        df2 = df.iloc[-2]
-        if df1['volume'] > df2['volume']:
-            return True
-    return False
-
-#较前一交易日价升
-def price_up(df):
-    if len(df) > 1:
-        df1 = df.iloc[-1]
-        df2 = df.iloc[-2]
-        if df1['close'] > df2['close']:
-            return True
-    return False
 
 #价格变化率(p1比p2增减的比例)
 def price_increase_rate(p1, p2):
@@ -843,18 +800,14 @@ def refresh_hot_board_thread(board):
             for row_index, row_data in top_boards.iterrows():
                 sector = row_data['板块名称']
                 if board == "industry":
-                    print("sector:",sector,"hot_industry_list:",hot_industry_list)
                     if sector not in hot_industry_list:
                         stock_board_cons_em_df = get_board_industry_cons(sector)
                     else:
-                        print(f"板块{sector}昨天在榜单前三名，跳过")
                         continue
                 else:
-                    print("sector:",sector,"hot_concept_list:",hot_concept_list)
                     if sector not in hot_concept_list:
                         stock_board_cons_em_df = get_board_concept_cons(sector)
                     else:
-                        print(f"板块{sector}昨天在榜单前三名，跳过")
                         continue
                 if stock_board_cons_em_df.empty:
                     time.sleep(1)

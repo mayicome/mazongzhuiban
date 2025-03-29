@@ -587,9 +587,7 @@ def handle_update():
 
         # 核心文件保护列表（不会被覆盖）
         protected_files = [
-            'config.ini',
-            'custom_strategy.py',
-            'user_settings.json'
+            'config.ini'
         ]
 
         for root, dirs, files in os.walk(src_dir):
@@ -602,7 +600,7 @@ def handle_update():
                 os.makedirs(os.path.dirname(dest_path), exist_ok=True)
                 
                 # 跳过配置文件
-                if rel_path == 'config.ini' and os.path.exists(dest_path):
+                if rel_path in protected_files and os.path.exists(dest_path):
                     continue
                     
                 shutil.copy2(src_path, dest_path)
