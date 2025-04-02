@@ -1037,25 +1037,99 @@
 
         // 执行更新
         function performUpdate() {
+            const modalBody = document.querySelector('#updateModal .modal-body');
+            const originalContent = modalBody.innerHTML;
             const btn = document.querySelector('#updateModal .btn-primary');
-            const originalHtml = btn.innerHTML;
+            const cancelBtn = document.querySelector('#updateModal .btn-secondary');
+            
+            // 保存按钮原始文本
+            const originalBtnText = btn.textContent;
+            
+            // 显示更新中状态
+            btn.disabled = true;
+            cancelBtn.style.display = 'none';
             btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> 更新中...';
             
             fetch('/update', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        showToast('success', '更新成功，请注意，只有重启程序之后更新才会生效。');
-                        //setTimeout(() => window.location.reload(), 5000);
+                        // 更新成功，修改模态框内容
+                        modalBody.innerHTML = `
+                            <div class="text-center">
+                                <i class="fas fa-check-circle text-success" style="font-size: 48px;"></i>
+                                <h4 class="mt-3 text-success">更新成功！</h4>
+                                <p class="mt-3">请重启程序以应用最新更新。</p>
+                            </div>
+                        `;
+                        btn.textContent = '关闭';
+                        btn.disabled = false;
+                        btn.onclick = () => {
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('updateModal'));
+                            modal.hide();
+                        };
                     } else {
-                        showToast('danger', '更新失败: ' + (data.message || '未知错误'));
+                        // 更新失败，显示错误信息
+                        modalBody.innerHTML = `
+                            <div class="text-center">
+                                <i class="fas fa-times-circle text-danger" style="font-size: 48px;"></i>
+                                <h4 class="mt-3 text-danger">更新失败</h4>
+                                <p class="mt-3">${data.message || '未知错误'}</p>
+                                <button class="btn btn-outline-primary mt-3" onclick="retryUpdate()">重试更新</button>
+                            </div>
+                        `;
+                        btn.textContent = '关闭';
+                        btn.disabled = false;
+                        btn.onclick = () => {
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('updateModal'));
+                            modal.hide();
+                            // 恢复模态框原始内容
+                            modalBody.innerHTML = originalContent;
+                            btn.textContent = originalBtnText;
+                            btn.onclick = performUpdate;
+                            cancelBtn.style.display = 'block';
+                        };
                     }
                 })
                 .catch(error => {
-                    showToast('danger', '更新请求失败: ' + error.message);
-                })
-                .finally(() => {
-                    btn.innerHTML = originalHtml;
+                    // 网络错误等异常情况
+                    modalBody.innerHTML = `
+                        <div class="text-center">
+                            <i class="fas fa-exclamation-triangle text-warning" style="font-size: 48px;"></i>
+                            <h4 class="mt-3 text-warning">更新请求失败</h4>
+                            <p class="mt-3">${error.message}</p>
+                            <button class="btn btn-outline-primary mt-3" onclick="retryUpdate()">重试更新</button>
+                        </div>
+                    `;
+                    btn.textContent = '关闭';
+                    btn.disabled = false;
+                });
+        }
+
+        // 添加重试更新功能
+        function retryUpdate() {
+            const modalBody = document.querySelector('#updateModal .modal-body');
+            const btn = document.querySelector('#updateModal .btn-primary');
+            const cancelBtn = document.querySelector('#updateModal .btn-secondary');
+            
+            // 恢复模态框原始内容和功能
+            modalBody.innerHTML = `
+                <p>最新版本: <span id="newVersion"></span></p>
+                <pre id="changelogContent" class="bg-light p-3"></pre>
+            `;
+            btn.textContent = '立即更新';
+            btn.onclick = performUpdate;
+            btn.disabled = false;
+            cancelBtn.style.display = 'block';
+            
+            // 重新获取版本信息
+            fetch('/check_update')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.has_update) {
+                        document.getElementById('newVersion').textContent = data.new_version;
+                        document.getElementById('changelogContent').textContent = data.changelog;
+                    }
                 });
         }
 

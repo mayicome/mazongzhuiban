@@ -358,7 +358,7 @@ class MarketData:
                 'stock_name': self.get_stock_name(pos.stock_code),
                 'volume': pos.volume,
                 'can_use_volume': pos.can_use_volume,
-                'open_price': 0 if pd.isna(pos.open_price) else pos.open_price,
+                'open_price': 0 if pd.isna(pos.open_price) or pos.open_price == "Infinity" else pos.open_price,
                 'market_value': pos.market_value
             } for pos in self.positions] if self.positions else []
         return []
@@ -385,17 +385,32 @@ class MarketData:
     def get_trades_info(self):
         """获取成交信息"""
         if hasattr(self, 'trades'):
-            return [{
+            '''return [{
                 'traded_id': trade.traded_id,
                 'stock_code': trade.stock_code,
                 'order_type': "买入" if trade.order_type == xtconstant.STOCK_BUY else "卖出",
                 'traded_volume': trade.traded_volume,
-                'traded_price': trade.traded_price,
+                'traded_price': 0 if trade.traded_price == "Infinity" else trade.traded_price,
                 'traded_time': datetime.fromtimestamp(trade.traded_time).strftime('%Y-%m-%d %H:%M:%S'),
                 'stock_name':self.get_stock_name(trade.stock_code),
                 'strategy_name':trade.strategy_name,
                 'order_remark':trade.order_remark,
-            } for trade in self.trades] if self.trades else []
+            } for trade in self.trades] if self.trades else []'''
+            list_trades = []
+            if self.trades:
+                for trade in self.trades:
+                    list_trades.append({
+                        'traded_id': trade.traded_id,
+                        'stock_code': trade.stock_code,
+                        'order_type': "买入" if trade.order_type == xtconstant.STOCK_BUY else "卖出",
+                        'traded_volume': trade.traded_volume,
+                        'traded_price': trade.traded_price,
+                        'traded_time': datetime.fromtimestamp(trade.traded_time).strftime('%Y-%m-%d %H:%M:%S'),
+                        'stock_name':self.get_stock_name(trade.stock_code),
+                        'strategy_name':trade.strategy_name,
+                        'order_remark':trade.order_remark,
+                    })
+            return list_trades
         return []
 
     def on_toast_message(self, toast_message):
