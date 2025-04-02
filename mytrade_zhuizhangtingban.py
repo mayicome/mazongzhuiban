@@ -956,6 +956,11 @@ def update_trading_thread(acc):
                                 logger.info(f"撤销未成交订单: {stock_code}, seq={bought_info.get('seq')}")
                                 my_cancel_order_stock(acc, bought_info.get('seq'))
             positions = xt_trader.query_stock_positions(acc)
+
+            for pos in positions:
+                #如果open_price是无穷大，则设置为0
+                if pos.open_price == float('inf'):
+                    pos.open_price = 0
             
             # 直接更新 MarketData 实例的数据
             my_market.update_trading_data(
