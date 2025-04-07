@@ -959,7 +959,7 @@ def update_trading_thread(acc):
 
             for pos in positions:
                 #如果open_price是无穷大，则设置为0
-                if pos.open_price == float('inf'):
+                if pos.open_price == float('inf') or pos.open_price == float('-inf'):
                     pos.open_price = 0
             
             # 直接更新 MarketData 实例的数据
@@ -999,7 +999,7 @@ class MyXtQuantTraderCallback(XtQuantTraderCallback):
             for bought_info in A_bought_list[:]: # 使用切片创建副本进行遍历
                 if bought_info.get('seq') == order.order_id:
                     # 创建定时任务，5秒后执行删除已下单的订单记录。延时5秒是为了释放的资金优先选择下单其他股票
-                    timer = threading.Timer(5, self.delete_bought_info, args=(bought_info))
+                    timer = threading.Timer(5, self.delete_bought_info, args=(bought_info,))
                     timer.start()
                     break
         my_market.update_trading_data(orders=[order])

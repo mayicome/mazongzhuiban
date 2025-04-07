@@ -1,6 +1,6 @@
 {
-    "version": "1.1.1",
-    "changelog": "1.处理迅投返回持仓数据为无穷大影响账户信息显示的问题",
+    "version": "1.1.2",
+    "changelog": "1.解决迅投返回持仓数据为负无穷大影响账户信息显示的问题\n解决撤单时报错的问题",
     "package_url": "https://github.com/mayicome/mazongzhuiban/archive/refs/heads/main.zip",
     "sha256": "39da7d49b0c5d3bb6c15310ff6e72987ec72dc6c2fe68c7ef5e5c1ac44ae2553"
 }
